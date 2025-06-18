@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { CheckIcon, XIcon, Copy, Edit } from "lucide-react"
 import ChatInput from "./chat-input"
 import ReactMarkdown from "react-markdown"
+import Image from "next/image"
 
 interface Message {
   id: string
@@ -105,7 +106,7 @@ export default function ChatWindow({
                               {/* Image Display */}
                               {msg.imageData && (
                                 <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
-                                  <img
+                                  <Image
                                     src={msg.imageData}
                                     alt={msg.imageName || "Uploaded image"}
                                     className="max-w-full h-auto rounded-lg max-h-64 object-contain"
