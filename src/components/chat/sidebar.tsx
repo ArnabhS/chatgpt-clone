@@ -1,41 +1,66 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { PenSquare, Search, Library, Sparkles, Zap, Crown, MessageSquare, Settings, User, X } from "lucide-react"
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  PenSquare, Search, Library, Sparkles, Zap,
+  Crown, MessageSquare, Settings, User, X
+} from "lucide-react";
+import { useUser } from "@clerk/nextjs"
 
-// Mock chat history data
-const chatHistory = [
-  "ChatGPT Clone Implementation",
-  "Models for Subscription Tasks",
-  "Move Row Menu Left",
-  "Inline Edit Save Popup",
-  "Todo list enhancements",
-  "Todo and Chat Toggle",
-  "React error debugging",
-  "DialogTitle Accessibility Fix",
-  "Slash menu removal",
-  "List Item Conversion Issue",
-  "Extract interview questions",
-]
-
-interface AppSidebarProps {
-  isSheet?: boolean
-  sidebarOpen?: boolean
-  setSidebarOpen?: (open: boolean) => void
+interface ChatItem {
+  _id: string;
+  title: string;
+  latestMessage: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpen }: AppSidebarProps) {
-  const [searchQuery, setSearchQuery] = useState("")
+interface AppSidebarProps {
+  isSheet?: boolean;
+  sidebarOpen?: boolean;
+  setSidebarOpen?: (open: boolean) => void;
+  onNewChat?: () => void;
+  onLoadChat?: (chatId: string) => void;
+  currentChatId?: string | null;
+}
 
-  const filteredChats = chatHistory.filter((chat) => chat.toLowerCase().includes(searchQuery.toLowerCase()))
+export function AppSidebar({ 
+  isSheet = false, 
+  sidebarOpen = false, 
+  setSidebarOpen,
+  onNewChat,
+  onLoadChat,
+  currentChatId
+}: AppSidebarProps) {
+  const { user } = useUser();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [chatHistory, setChatHistory] = useState<ChatItem[]>([]);
+  const userId = user?.id; 
+
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const res = await fetch(`/api/chat/history?userId=${userId}`);
+        const data = await res.json();
+        setChatHistory(data.chats || []);
+      } catch (error) {
+        console.error("Error fetching chat history:", error);
+      }
+    };
+
+    fetchChats();
+  }, [userId]);
+
+  const filteredChats = chatHistory.filter((chat) =>
+    chat.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-[#171717] border-r border-gray-700">
-      {/* Header */}
       <div className="p-3 border-b border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -54,16 +79,17 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
             </Button>
           )}
         </div>
-        <Button className="w-full bg-transparent border border-gray-600 text-white hover:bg-gray-700 justify-start gap-2">
+        <Button 
+          className="w-full bg-transparent border border-gray-600 text-white hover:bg-gray-700 justify-start gap-2"
+          onClick={onNewChat}
+        >
           <PenSquare className="w-4 h-4" />
           New chat
         </Button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-hidden">
         <div className="p-3">
-          {/* Search */}
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -76,7 +102,6 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
             </div>
           </div>
 
-          {/* Navigation Items */}
           <div className="space-y-1 mb-6">
             <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
               <Library className="w-4 h-4 mr-3" />
@@ -92,19 +117,21 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
             </Button>
           </div>
 
-          {/* Chat History */}
           <div>
             <h3 className="text-gray-400 text-xs font-medium mb-2 px-2">Chats</h3>
             <ScrollArea className="h-[300px]">
               <div className="space-y-1">
-                {filteredChats.map((chat, index) => (
+                {filteredChats.map((chat) => (
                   <Button
-                    key={index}
+                    key={chat._id}
                     variant="ghost"
-                    className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white text-sm py-2 px-3 h-auto"
+                    className={`w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white text-sm py-2 px-3 h-auto ${
+                      currentChatId === chat._id ? 'bg-gray-700 text-white' : ''
+                    }`}
+                    onClick={() => onLoadChat?.(chat._id)}
                   >
                     <MessageSquare className="w-4 h-4 mr-3 flex-shrink-0" />
-                    <span className="truncate text-left">{chat}</span>
+                    <span className="truncate text-left">{chat.title}</span>
                   </Button>
                 ))}
               </div>
@@ -113,7 +140,6 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
         </div>
       </div>
 
-      {/* Footer */}
       <div className="p-3 border-t border-gray-700 space-y-1">
         <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
           <Crown className="w-4 h-4 mr-3" />
@@ -132,7 +158,7 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
         </Button>
       </div>
     </div>
-  )
+  );
 
   if (isSheet) {
     return (
@@ -141,12 +167,12 @@ export function AppSidebar({ isSheet = false, sidebarOpen = false, setSidebarOpe
           <SidebarContent />
         </SheetContent>
       </Sheet>
-    )
+    );
   }
 
   return (
     <div className="w-[260px]">
       <SidebarContent />
     </div>
-  )
+  );
 }

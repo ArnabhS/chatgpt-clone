@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useChat } from "@ai-sdk/react"
 import { useUser } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
@@ -9,18 +9,59 @@ import ChatInput from "./chat-input"
 import { Button } from "@/components/ui/button"
 import { Share, MoreHorizontal, ChevronDown, Menu, ChevronLeft, ChevronRight } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { v4 as uuidv4 } from 'uuid'
 
 export default function ChatLayout() {
   const { user } = useUser()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
 
-  const { messages, input, setInput, isLoading, handleInputChange, handleSubmit, append, reload } = useChat({
+  const { messages, input, setInput, isLoading, handleInputChange, handleSubmit, setMessages } = useChat({
     api: "/api/chat",
     body: {
       userId: user?.id || "guest",
+      chatId: currentChatId,
     },
   })
+
+  // Start a new chat
+  const startNewChat = () => {
+    const newChatId = uuidv4()
+    setCurrentChatId(newChatId)
+    setMessages([])
+  }
+
+  // Load an existing chat
+  const loadChat = async (chatId: string) => {
+    try {
+      const response = await fetch('/api/chat/history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chatId,
+          userId: user?.id || "guest",
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentChatId(chatId)
+        setMessages(data.messages || [])
+      }
+    } catch (error) {
+      console.error('Error loading chat:', error)
+    }
+  }
+
+  // Start a new chat when component first loads
+  useEffect(() => {
+    if (!currentChatId) {
+      startNewChat()
+    }
+  }, [currentChatId])
 
   // Replaces user message and regenerates assistant reply
   const handleEditMessage = async (index: number, newMessage: string) => {
@@ -29,23 +70,14 @@ export default function ChatLayout() {
 
     // Slice only up to edited user message
     const sliceBefore = updated.slice(0, index + 1)
-    const regenerated = await fetch("/api/chat", {
+    await fetch("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ messages: sliceBefore, userId: user?.id || "guest" }),
+      body: JSON.stringify({ 
+        messages: sliceBefore, 
+        userId: user?.id || "guest",
+        chatId: currentChatId,
+      }),
     })
-
-    const reader = regenerated.body?.getReader()
-    const decoder = new TextDecoder()
-    let responseText = ""
-
-    while (reader) {
-      const { value, done } = await reader.read()
-      if (done) break
-      responseText += decoder.decode(value)
-    }
-
-    // Add assistant response
-    const final = [...sliceBefore, { role: "assistant", content: responseText.trim() }]
 
     window.location.reload() // force rerender (can be optimized)
   }
@@ -54,7 +86,11 @@ export default function ChatLayout() {
     <div className="flex h-screen bg-[#212121]">
       {/* Desktop Sidebar */}
       <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}>
-        <AppSidebar />
+        <AppSidebar 
+          onNewChat={startNewChat}
+          onLoadChat={loadChat}
+          currentChatId={currentChatId}
+        />
       </div>
 
       {/* Collapse Button */}
@@ -70,7 +106,14 @@ export default function ChatLayout() {
 
       {/* Mobile Sidebar */}
       <div className="md:hidden">
-        <AppSidebar isSheet sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <AppSidebar 
+          isSheet 
+          sidebarOpen={sidebarOpen} 
+          setSidebarOpen={setSidebarOpen}
+          onNewChat={startNewChat}
+          onLoadChat={loadChat}
+          currentChatId={currentChatId}
+        />
       </div>
 
       {/* Main Content */}

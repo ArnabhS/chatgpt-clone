@@ -1,17 +1,14 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const MessageSchema = new mongoose.Schema({
-  role: String,
-  content: String,
-});
-
-const ChatSchema = new mongoose.Schema(
+const ChatMessageSchema = new mongoose.Schema(
   {
-    userId: String,
-    messages: [MessageSchema],
+    userId: { type: String, required: true },
+    chatId: { type: String, required: true }, 
+    role: { type: String, enum: ['user', 'assistant'], required: true },
+    content: { type: String, required: true },
   },
   { timestamps: true }
 );
 
-export const Chat =
-  mongoose.models.Chat || mongoose.model("Chat", ChatSchema);
+export const ChatMessage =
+  mongoose.models.ChatMessage || mongoose.model('ChatMessage', ChatMessageSchema);
