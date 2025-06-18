@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useChat } from "@ai-sdk/react"
 import { useUser } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
 import ChatWindow from "./chat-window"
@@ -14,21 +13,104 @@ import { v4 as uuidv4 } from 'uuid'
 import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
 import { validateModelSwitch } from '@/lib/model-utils'
 
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  imageData?: string
+  imageName?: string
+}
+
 export default function ChatLayout() {
   const { user } = useUser()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
-  const { messages, input, setInput, isLoading, handleInputChange, handleSubmit, setMessages } = useChat({
-    api: "/api/chat",
-    body: {
-      userId: user?.id || "guest",
-      chatId: currentChatId,
-      modelName: selectedModel,
-    },
-  })
+  // Custom submit handler for FormData
+  const handleSubmit = async (formData: FormData) => {
+    // Add additional data to FormData
+    formData.append('userId', user?.id || "guest")
+    formData.append('chatId', currentChatId || '')
+    formData.append('modelName', selectedModel)
+
+    const message = formData.get('message') as string
+    const imageData = formData.get('imageData') as string
+    const imageName = formData.get('imageName') as string
+
+    // Add user message to chat immediately
+    const userMessage: Message = {
+      id: uuidv4(),
+      role: 'user',
+      content: message || '',
+      imageData: imageData || undefined,
+      imageName: imageName || undefined
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        // Read the streaming response
+        const reader = response.body?.getReader()
+        if (reader) {
+          let assistantMessage = ''
+          
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            
+            const chunk = new TextDecoder().decode(value)
+            const lines = chunk.split('\n')
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') {
+                  // Add assistant message to chat
+                  const assistantMsg: Message = {
+                    id: uuidv4(),
+                    role: 'assistant',
+                    content: assistantMessage
+                  }
+                  setMessages(prev => [...prev, assistantMsg])
+                  setIsLoading(false)
+                  return
+                }
+                
+                try {
+                  const parsed = JSON.parse(data)
+                  if (parsed.text) {
+                    assistantMessage += parsed.text
+                  }
+                } catch {
+                  // Ignore parsing errors
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error submitting message:', error)
+      setIsLoading(false)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value)
+  }
 
   // Start a new chat
   const startNewChat = () => {
@@ -195,7 +277,6 @@ export default function ChatLayout() {
             onEditMessage={handleEditMessage}
             isLoading={isLoading}
             input={input}
-            setInput={setInput}
             onInputChange={handleInputChange}
             onSubmit={handleSubmit}
           />
@@ -212,7 +293,6 @@ export default function ChatLayout() {
                 isLoading={isLoading}
                 onInputChange={handleInputChange}
                 onSubmit={handleSubmit}
-                setInput={setInput}
               />
             </div>
           </div>

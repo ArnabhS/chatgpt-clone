@@ -1,24 +1,61 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Features
+
+### Image Upload & AI Analysis
+- Upload images (PNG, JPG, GIF, WebP, SVG) for AI analysis
+- Images are automatically sent to GPT-4 Vision for intelligent analysis
+- Simple click-to-upload interface (no drag & drop)
+- Images are stored securely on Cloudinary
+- Maximum file size: 10MB
+
+### Chat Interface
+- Real-time chat with AI models
+- Support for multiple AI models (GPT-4, GPT-3.5, etc.)
+- Message history and conversation management
+- Token usage tracking and cost estimation
+
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+ 
+- Cloudinary account
+- OpenAI API key
+
+### Environment Variables
+Create a `.env.local` file with the following variables:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Install dependencies:
+```bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Run the development server:
+```bash
+npm run dev
+```
+
+3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## How to Use Image Analysis
+
+1. Click the paperclip icon in the chat input
+2. Select an image file (PNG, JPG, GIF, WebP, SVG)
+3. The image will be uploaded to Cloudinary
+4. Send your message with the image
+5. The AI will analyze the image using GPT-4 Vision and provide insights
 
 ## Learn More
 

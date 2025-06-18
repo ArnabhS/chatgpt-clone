@@ -4,16 +4,22 @@ import { useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { CheckIcon, XIcon, Copy, Edit } from "lucide-react"
-import { Message } from "@ai-sdk/react"
 import ChatInput from "./chat-input"
 import ReactMarkdown from "react-markdown"
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  imageData?: string
+  imageName?: string
+}
 
 export default function ChatWindow({
   messages,
   onEditMessage,
   isLoading = false,
   input,
-  setInput,
   onInputChange,
   onSubmit,
 }: {
@@ -21,9 +27,8 @@ export default function ChatWindow({
   onEditMessage?: (index: number, newMessage: string) => void
   isLoading?: boolean
   input: string
-  setInput: (val: string) => void
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-  onSubmit: (e: React.FormEvent<HTMLFormElement> | React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onSubmit: (formData: FormData) => void
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editValue, setEditValue] = useState("")
@@ -36,14 +41,13 @@ export default function ChatWindow({
     <ScrollArea className="h-full">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-20">
+          <div className="flex flex-col items-center justify-center h-full text-center py-40">
             <h1 className="text-3xl sm:text-4xl font-medium text-white mb-2">
               What are you working on?
             </h1>
             <div className="w-full max-w-2xl mt-6">
               <ChatInput
                 input={input}
-                setInput={setInput}
                 isLoading={isLoading}
                 onInputChange={onInputChange}
                 onSubmit={onSubmit}
@@ -57,7 +61,7 @@ export default function ChatWindow({
               const isEditing = editingIndex === idx
 
               return (
-                <div key={idx} className="group">
+                <div key={msg.id} className="group">
                   <div className={`flex gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
                     <div className={`flex-1 max-w-2xl ${isUser ? "order-first" : ""}`}>
                       <div className={`relative ${isUser ? "text-right" : ""}`}>
@@ -98,9 +102,26 @@ export default function ChatWindow({
                                 isUser ? "bg-[rgb(48,48,48)] text-white px-4 py-3 rounded-3xl inline-block" : "text-gray-100"
                               }`}
                             >
-                              <div className="whitespace-pre-wrap">
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
-                              </div>
+                              {/* Image Display */}
+                              {msg.imageData && (
+                                <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
+                                  <img
+                                    src={msg.imageData}
+                                    alt={msg.imageName || "Uploaded image"}
+                                    className="max-w-full h-auto rounded-lg max-h-64 object-contain"
+                                  />
+                                  {msg.imageName && (
+                                    <p className="text-xs text-gray-400 mt-1">{msg.imageName}</p>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Text Content */}
+                              {msg.content && (
+                                <div className="whitespace-pre-wrap">
+                                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                              )}
                             </div>
 
                             {/* Action buttons */}

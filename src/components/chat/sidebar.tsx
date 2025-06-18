@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   PenSquare, Search, Library, Sparkles, Zap,
-  Crown, MessageSquare, Settings, User, X
+  Crown,  Settings, User, X
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs"
 
@@ -60,8 +60,8 @@ export function AppSidebar({
   );
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#171717] border-r border-gray-700">
-      <div className="p-3 border-b border-gray-700">
+    <div className="flex flex-col h-full bg-[#171717] border-r border-[#303030]">
+      <div className="p-3 border-b border-[#303030]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">
@@ -72,7 +72,7 @@ export function AppSidebar({
             <Button
               variant="ghost"
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-gray-700"
+              className="text-gray-400 hover:text-white hover:bg-[#303030]"
               onClick={() => setSidebarOpen?.(false)}
             >
               <X className="h-4 w-4" />
@@ -80,7 +80,7 @@ export function AppSidebar({
           )}
         </div>
         <Button 
-          className="w-full bg-transparent border border-gray-600 text-white hover:bg-gray-700 justify-start gap-2"
+          className="w-full bg-transparent border border-gray-600 text-white hover:bg-[#303030] justify-start gap-2"
           onClick={onNewChat}
         >
           <PenSquare className="w-4 h-4" />
@@ -103,15 +103,15 @@ export function AppSidebar({
           </div>
 
           <div className="space-y-1 mb-6">
-            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
               <Library className="w-4 h-4 mr-3" />
               Library
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
               <Sparkles className="w-4 h-4 mr-3" />
               Sora
             </Button>
-            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+            <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
               <Zap className="w-4 h-4 mr-3" />
               GPTs
             </Button>
@@ -125,12 +125,12 @@ export function AppSidebar({
                   <Button
                     key={chat._id}
                     variant="ghost"
-                    className={`w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white text-sm py-2 px-3 h-auto ${
-                      currentChatId === chat._id ? 'bg-gray-700 text-white' : ''
+                    className={`w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white text-sm py-2 px-3 h-auto ${
+                      currentChatId === chat._id ? 'bg-[#303030] text-white' : ''
                     }`}
                     onClick={() => onLoadChat?.(chat._id)}
                   >
-                    <MessageSquare className="w-4 h-4 mr-3 flex-shrink-0" />
+                   
                     <span className="truncate text-left">{chat.title}</span>
                   </Button>
                 ))}
@@ -140,19 +140,19 @@ export function AppSidebar({
         </div>
       </div>
 
-      <div className="p-3 border-t border-gray-700 space-y-1">
-        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+      <div className="p-3 border-t border-[#303030] space-y-1">
+        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
           <Crown className="w-4 h-4 mr-3" />
           <div className="flex flex-col items-start">
             <span className="text-sm font-medium">Upgrade plan</span>
             <span className="text-xs text-gray-400">More access to the best models</span>
           </div>
         </Button>
-        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
           <User className="w-4 h-4 mr-3" />
           Profile
         </Button>
-        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-gray-700 hover:text-white">
+        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
           <Settings className="w-4 h-4 mr-3" />
           Settings
         </Button>
@@ -163,7 +163,7 @@ export function AppSidebar({
   if (isSheet) {
     return (
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-[260px] bg-[#171717] border-gray-700">
+        <SheetContent side="left" className="p-0 w-[260px] bg-[#171717] border-[#303030]">
           <SidebarContent />
         </SheetContent>
       </Sheet>
