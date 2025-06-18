@@ -1,6 +1,7 @@
 import ChatLayout from "@/components/chat/layout";
 
 
+
 export default async function HomePage() {
   
 
@@ -9,6 +10,7 @@ export default async function HomePage() {
       
        
     <ChatLayout/>
+  
     </main>
   );
 }
