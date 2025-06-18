@@ -22,6 +22,7 @@
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.6.1",
     "clsx": "^2.1.1",
+    "fs": "^0.0.1-security",
     "gpt-3-encoder": "^1.1.4",
     "lucide-react": "^0.516.0",
     "mem0ai": "^2.1.31",

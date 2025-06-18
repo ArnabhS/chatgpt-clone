@@ -6,22 +6,27 @@ import { useUser } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
 import ChatWindow from "./chat-window"
 import ChatInput from "./chat-input"
+import { TokenUsage } from "./token-usage"
 import { Button } from "@/components/ui/button"
 import { Share, MoreHorizontal, ChevronDown, Menu, ChevronLeft, ChevronRight } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { v4 as uuidv4 } from 'uuid'
+import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
+import { validateModelSwitch } from '@/lib/model-utils'
 
 export default function ChatLayout() {
   const { user } = useUser()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
 
   const { messages, input, setInput, isLoading, handleInputChange, handleSubmit, setMessages } = useChat({
     api: "/api/chat",
     body: {
       userId: user?.id || "guest",
       chatId: currentChatId,
+      modelName: selectedModel,
     },
   })
 
@@ -63,6 +68,23 @@ export default function ChatLayout() {
     }
   }, [currentChatId])
 
+  // Handle model switching with validation
+  const handleModelSwitch = (newModel: string) => {
+    if (messages.length === 0) {
+      setSelectedModel(newModel);
+      return;
+    }
+
+    const validation = validateModelSwitch(messages, newModel);
+    if (validation.canSwitch) {
+      setSelectedModel(newModel);
+    } else {
+      // You could show a toast notification here
+      console.warn('Cannot switch model:', validation.reason);
+      alert(`Cannot switch to ${MODEL_CONFIGS[newModel]?.name}: ${validation.reason}`);
+    }
+  };
+
   // Replaces user message and regenerates assistant reply
   const handleEditMessage = async (index: number, newMessage: string) => {
     const updated = [...messages]
@@ -76,6 +98,7 @@ export default function ChatLayout() {
         messages: sliceBefore, 
         userId: user?.id || "guest",
         chatId: currentChatId,
+        modelName: selectedModel,
       }),
     })
 
@@ -132,13 +155,25 @@ export default function ChatLayout() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="text-white hover:bg-gray-700 gap-1">
-                  ChatGPT
+                  {MODEL_CONFIGS[selectedModel]?.name || 'ChatGPT'}
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-gray-800 border-gray-700">
-                <DropdownMenuItem className="text-white hover:bg-gray-700">ChatGPT-4</DropdownMenuItem>
-                <DropdownMenuItem className="text-white hover:bg-gray-700">ChatGPT-3.5</DropdownMenuItem>
+                {Object.entries(MODEL_CONFIGS).map(([key, config]) => (
+                  <DropdownMenuItem 
+                    key={key}
+                    className="text-white hover:bg-gray-700"
+                    onClick={() => handleModelSwitch(key)}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{config.name}</span>
+                      <span className="text-xs text-gray-400">
+                        {config.maxTokens.toLocaleString()} tokens • ${config.costPer1kInput}/1k input
+                      </span>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -165,6 +200,10 @@ export default function ChatLayout() {
             onSubmit={handleSubmit}
           />
         </div>
+        
+        {/* Token Usage Indicator */}
+        <TokenUsage messages={messages} selectedModel={selectedModel} />
+        
         {messages.length > 0 && (
           <div className="w-full bg-[#212121] border-t border-gray-700 sticky bottom-0 z-20">
             <div className="max-w-3xl mx-auto px-4">

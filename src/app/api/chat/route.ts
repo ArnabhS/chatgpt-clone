@@ -4,15 +4,21 @@ import { Memory } from 'mem0ai/oss';
 import { connectDB } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage } from '@/models/chat';
+import { 
+  trimMessagesToTokenLimit, 
+  getTokenUsage, 
+  checkTokenLimits, 
+  DEFAULT_MODEL 
+} from '@/lib/trimMessages';
+
 const memory = new Memory();
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-
   await connectDB();
 
-  const { messages, userId, chatId: existingChatId } = await req.json();
+  const { messages, userId, chatId: existingChatId, modelName = DEFAULT_MODEL } = await req.json();
   
   // Generate a new chatId if this is a new conversation
   const chatId = existingChatId || uuidv4();
@@ -21,9 +27,7 @@ export async function POST(req: Request) {
   const latestUserMessage = messages[messages.length - 1];
   const searchQuery = latestUserMessage.content;
   
-  console.log('Search query:', searchQuery);
   const searchResults = await memory.search(searchQuery, { userId: userId });
-  console.log('Search results:', searchResults);
   
   const contextMessages = Array.isArray(searchResults) 
     ? searchResults.map(item => ({
@@ -32,12 +36,28 @@ export async function POST(req: Request) {
       }))
     : [];
   
-  console.log('Context messages:', contextMessages);
   const combinedMessages = [...contextMessages, ...messages];
   
+  // Check token limits before processing
+  const tokenCheck = checkTokenLimits(combinedMessages, modelName);
+  console.log('Token usage:', {
+    model: modelName,
+    inputTokens: tokenCheck.inputTokens,
+    maxTokens: tokenCheck.maxTokens,
+    needsTrimming: tokenCheck.needsTrimming,
+    costEstimate: tokenCheck.usage.costEstimate
+  });
+  
+  // Trim messages if they exceed the model's token limit
+  const trimmedMessages = trimMessagesToTokenLimit(combinedMessages, modelName);
+  
+  if (tokenCheck.needsTrimming) {
+    console.log(`Messages trimmed from ${tokenCheck.inputTokens} to ${getTokenUsage(trimmedMessages, modelName).inputTokens} tokens`);
+  }
+  
   const result = streamText({
-    model: openai('gpt-4.1'),
-    messages: combinedMessages,
+    model: openai(modelName),
+    messages: trimmedMessages as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
   });
 
   const stream = result.toDataStreamResponse();
