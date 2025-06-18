@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useUser } from "@clerk/nextjs"
+import { useUser, SignOutButton } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
 import ChatWindow from "./chat-window"
 import ChatInput from "./chat-input"
 import { TokenUsage } from "./token-usage"
 import { Button } from "@/components/ui/button"
-import { Share, MoreHorizontal, ChevronDown, Menu, ChevronLeft, ChevronRight } from "lucide-react"
+import { Share, MoreHorizontal, ChevronDown, Menu, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { v4 as uuidv4 } from 'uuid'
 import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
@@ -188,26 +188,30 @@ export default function ChatLayout() {
   }
 
   return (
-    <div className="flex h-screen bg-[#212121]">
+    <div className="flex h-screen bg-[#212121] relative">
       {/* Desktop Sidebar */}
-      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}>
+      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-10' : 'w-[260px]'} relative`}>
         <AppSidebar 
           onNewChat={startNewChat}
           onLoadChat={loadChat}
           currentChatId={currentChatId}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
         />
+        {/* Collapse/Expand Button - always absolutely positioned */}
+        <button
+          type="button"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`absolute top-2 ${isCollapsed ? 'left-1' : 'right-2'} z-30 w-8 h-8 bg-[#232323] border border-[#353535] rounded-xl shadow hover:bg-[#2a2a2a] flex items-center justify-center`}
+        >
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="4" width="16" height="14" rx="3" stroke="#fff" strokeWidth="1.5" fill="none" />
+            <rect x="6.5" y="7" width="2" height="8" rx="1" fill="#fff" />
+            <rect x="11.5" y="7" width="2" height="8" rx="1" fill="#fff" opacity="0.5" />
+          </svg>
+        </button>
       </div>
-
-      {/* Collapse Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hidden md:flex absolute left-[260px] top-4 z-10 text-gray-400 hover:text-white hover:bg-gray-700 transition-all duration-300"
-        style={{ left: isCollapsed ? '0' : '260px' }}
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-      </Button>
 
       {/* Mobile Sidebar */}
       <div className="md:hidden">
@@ -229,23 +233,23 @@ export default function ChatLayout() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-gray-700 md:hidden"
+              className="text-gray-400 hover:text-white hover:bg-[#303030] md:hidden"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-4 w-4" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="text-white hover:bg-gray-700 gap-1">
+                <Button variant="ghost" className="text-white hover:bg-[#303030] hover:text-white gap-1">
                   {MODEL_CONFIGS[selectedModel]?.name || 'ChatGPT'}
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-gray-800 border-gray-700">
+              <DropdownMenuContent className="bg-[#303030] border-gray-700">
                 {Object.entries(MODEL_CONFIGS).map(([key, config]) => (
                   <DropdownMenuItem 
                     key={key}
-                    className="text-white hover:bg-gray-700"
+                    className="text-white hover:bg-[#303030]"
                     onClick={() => handleModelSwitch(key)}
                   >
                     <div className="flex flex-col items-start">
@@ -260,13 +264,45 @@ export default function ChatLayout() {
             </DropdownMenu>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-gray-700">
+            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-[#303030]">
               <Share className="h-4 w-4 mr-1" />
               Share
             </Button>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-gray-700">
+            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-[#303030]">
               <MoreHorizontal className="h-4 w-4" />
             </Button>
+            {/* User Menu with Logout */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-[#303030] p-1">
+                  {user?.imageUrl ? (
+                    <img 
+                      src={user.imageUrl} 
+                      alt={user.firstName || "User"} 
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-[#303030] border-gray-700">
+                <DropdownMenuItem className="text-white hover:bg-[#303030]">
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">{user?.firstName || user?.emailAddresses[0]?.emailAddress}</span>
+                    <span className="text-xs text-gray-400">Account</span>
+                  </div>
+                </DropdownMenuItem>
+               
+                <DropdownMenuItem className="text-red-400 hover:bg-[#303030]">
+                  <SignOutButton>
+                    <button className="flex items-center w-full text-left">
+                      <span>Sign out</span>
+                    </button>
+                  </SignOutButton>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
