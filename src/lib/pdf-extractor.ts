@@ -1,20 +1,6 @@
 import PDFParser from 'pdf2json';
 import fs from 'fs';
 
-// Basic type definitions for pdf2json
-interface ParserError {
-  parserError: string;
-}
-
-type PDFParserCallback = (data: ParserError | void) => void;
-
-class PDFParserClass {
-  constructor(container: null, storeDataInCallback: number) {}
-  on(event: 'pdfParser_dataError' | 'pdfParser_dataReady', callback: PDFParserCallback): void {}
-  loadPDF(filePath: string): void {}
-  getRawTextContent(): string { return ''; }
-}
-
 export async function extractTextFromPDF(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
@@ -25,12 +11,13 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
       }
 
       // Create a new PDF parser instance
-      const pdfParser = new (PDFParser as unknown as typeof PDFParserClass)(null, 1);
+      const pdfParser = new PDFParser();
 
       // Handle parsing errors
-      pdfParser.on('pdfParser_dataError', (errData: ParserError) => {
-        console.error('PDF parsing error:', errData.parserError);
-        reject(new Error(errData.parserError));
+      pdfParser.on('pdfParser_dataError', (errData: { parserError: Error }) => {
+        const errorMsg = errData.parserError instanceof Error ? errData.parserError.message : String(errData.parserError);
+        console.error('PDF parsing error:', errorMsg);
+        reject(new Error(errorMsg));
       });
 
       // Handle successful parsing
