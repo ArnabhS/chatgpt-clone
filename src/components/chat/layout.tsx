@@ -207,7 +207,7 @@ export default function ChatLayout() {
   return (
     <div className="flex h-screen bg-[#212121] relative">
       {/* Desktop Sidebar */}
-      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}> 
+      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-10' : 'w-[260px]'} relative`}>
         <AppSidebar 
           onNewChat={startNewChat}
           onLoadChat={loadChat}
@@ -230,15 +230,7 @@ export default function ChatLayout() {
         </button>
       </div>
       {/* Collapse Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hidden md:flex absolute left-[260px] top-4 z-10 text-gray-400 hover:text-white hover:bg-gray-700 transition-all duration-300"
-        style={{ left: isCollapsed ? '0' : '260px' }}
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-      </Button>
+     
       {/* Mobile Sidebar */}
       <div className="md:hidden">
         <AppSidebar 
