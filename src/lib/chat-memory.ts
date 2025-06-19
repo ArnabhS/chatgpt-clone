@@ -1,7 +1,9 @@
 import { Memory } from 'mem0ai/oss';
 import { ChatMessage } from '@/models/chat';
 
-const memory = new Memory();
+const memory = new Memory({
+  disableHistory: true
+});
 
 export async function storeMessages(userId: string, chatId: string, userContent: string, assistantContent: string) {
   await memory.add(userContent, { userId, metadata: { role: 'user' } });
