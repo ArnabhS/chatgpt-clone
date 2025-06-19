@@ -1,8 +1,3 @@
-// Browser-compatible token counting (approximate)
-// This is a simplified tokenizer that provides reasonable estimates
-// For production, consider using a proper tokenizer like tiktoken
-
-// Model-specific token limits and constraints
 export interface ModelConfig {
   name: string;
   maxTokens: number;

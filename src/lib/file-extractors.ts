@@ -3,10 +3,10 @@ import mammoth from 'mammoth';
 
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   try {
-    // Pass the buffer directly to pdf-parse
+    
     const data = await pdfParse(buffer, {
-      // Ensure we're using the buffer and not trying to read a file
-      max: 0, // No page limit
+    
+      max: 0, 
     });
     return data.text;
   } catch (error) {

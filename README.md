@@ -1,73 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChatGPT Clone
+
+A full-stack, production-ready ChatGPT clone built with Next.js, OpenAI, MongoDB, Supabase, and Cloudinary. Features real-time chat, image upload and AI analysis, PDF/document support, and user authentication via Clerk.
 
 ## Features
 
-### Image Upload & AI Analysis
-- Upload images (PNG, JPG, GIF, WebP, SVG) for AI analysis
-- Images are automatically sent to GPT-4 Vision for intelligent analysis
-- Simple click-to-upload interface (no drag & drop)
-- Images are stored securely on Cloudinary
-- Maximum file size: 10MB
+- **Real-time Chat**: Interact with AI models (GPT-4o, GPT-4, GPT-3.5, etc.)
+- **Image Upload & AI Analysis**: Upload images (PNG, JPG, GIF, WebP, SVG) for GPT-4 Vision analysis
+- **PDF & Document Support**: Upload PDFs and DOCX files for content extraction and AI analysis
+- **Message History**: Persistent chat history per user
+- **Token Usage & Cost Tracking**: See token usage and cost estimates per conversation
+- **Authentication**: Secure sign-in/sign-up with Clerk
+- **Cloud Storage**: Images stored securely on Cloudinary
+- **Vector Memory**: Uses Supabase for vector storage and memory
 
-### Chat Interface
-- Real-time chat with AI models
-- Support for multiple AI models (GPT-4, GPT-3.5, etc.)
-- Message history and conversation management
-- Token usage tracking and cost estimation
+## Quickstart
 
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ 
-- Cloudinary account
-- OpenAI API key
-
-### Environment Variables
-Create a `.env.local` file with the following variables:
-
+### 1. Clone the Repository
 ```bash
-# Cloudinary Configuration
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key
+git clone https://github.com/ArnabhS/chatgpt-clone.git
+cd chatgpt-clone
 ```
 
-### Installation
-
-1. Install dependencies:
+### 2. Install Dependencies
 ```bash
 npm install
 ```
 
-2. Run the development server:
+### 3. Configure Environment Variables
+Create a `.env.local` file in the root directory (see `.env.example`):
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` and fill in your credentials:
+- [Get OpenAI API Key](https://platform.openai.com/account/api-keys)
+- [Get Cloudinary credentials](https://cloudinary.com/)
+- [Get MongoDB URI](https://www.mongodb.com/atlas/database)
+- [Get Supabase project URL and anon key](https://app.supabase.com/)
+
+### 4. Run the Development Server
 ```bash
 npm run dev
 ```
+Visit [http://localhost:3000](http://localhost:3000) in your browser.
 
-3. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment Variables
 
-## How to Use Image Analysis
+| Variable                        | Description                        |
+|----------------------------------|------------------------------------|
+| `OPENAI_API_KEY`                | OpenAI API key                     |
+| `CLOUDINARY_CLOUD_NAME`         | Cloudinary cloud name               |
+| `CLOUDINARY_API_KEY`            | Cloudinary API key                  |
+| `CLOUDINARY_API_SECRET`         | Cloudinary API secret               |
+| `MONGODB_URI`                   | MongoDB connection string           |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public API key        |
 
-1. Click the paperclip icon in the chat input
-2. Select an image file (PNG, JPG, GIF, WebP, SVG)
-3. The image will be uploaded to Cloudinary
-4. Send your message with the image
-5. The AI will analyze the image using GPT-4 Vision and provide insights
+> **Note:** All environment variables are required for full functionality.
 
-## Learn More
+## Usage
 
-To learn more about Next.js, take a look at the following resources:
+- **Chat**: Type messages and interact with the AI.
+- **Image Upload**: Click the paperclip icon, select an image, and send for analysis.
+- **PDF/Doc Upload**: Upload PDF or DOCX files for content extraction and AI analysis.
+- **Authentication**: Sign up or sign in with Clerk (email/social login).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Major Dependencies
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Next.js](https://nextjs.org/) - React framework for production
+- [OpenAI](https://platform.openai.com/) - AI models and vision
+- [Cloudinary](https://cloudinary.com/) - Image storage and CDN
+- [MongoDB](https://www.mongodb.com/) - Database for chat history
+- [Supabase](https://supabase.com/) - Vector store for memory
+- [Clerk](https://clerk.com/) - Authentication
+- [Radix UI](https://www.radix-ui.com/) - UI primitives
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
 
-## Deploy on Vercel
+## Troubleshooting
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Missing Environment Variables**: Ensure all variables in `.env.example` are set in `.env.local`.
+- **MongoDB Connection Errors**: Check your `MONGODB_URI` and network/firewall settings.
+- **Cloudinary Upload Issues**: Verify your Cloudinary credentials and account status.
+- **OpenAI API Errors**: Ensure your API key is valid and has sufficient quota.
+- **Supabase Errors**: Check your Supabase URL and anon key.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Contributing
+
+1. Fork the repo and create your branch: `git checkout -b feature/your-feature`
+2. Commit your changes: `git commit -am 'Add new feature'`
+3. Push to the branch: `git push origin feature/your-feature`
+4. Open a pull request
+
+## License
+
+MIT
+
+---
+
+_This project is not affiliated with OpenAI or ChatGPT. For educational and demonstration purposes only._

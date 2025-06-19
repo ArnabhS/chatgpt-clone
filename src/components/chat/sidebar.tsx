@@ -65,7 +65,7 @@ export function AppSidebar({
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Collapsed sidebar: minimal vertical bar with only the logo at top
+  
   if (isCollapsed && setIsCollapsed) {
     return (
       <div className="relative h-screen w-10 bg-[#171717] border-r border-[#303030] flex flex-col items-center pt-2">

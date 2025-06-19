@@ -161,7 +161,7 @@ export default function ChatWindow({
                                   </a>
                                 </div>
                               )}
-                              {/* TXT Display */}
+                            
                               {msg.txtData && (
                                 <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
                                   <pre className="bg-[#232323] text-white p-2 rounded max-h-40 overflow-auto whitespace-pre-wrap text-xs">
@@ -179,7 +179,7 @@ export default function ChatWindow({
                                 </div>
                               )}
                               
-                              {/* Text Content */}
+                             
                               {msg.content && (
                                 <div className="whitespace-pre-wrap">
                                   <ReactMarkdown
@@ -210,7 +210,7 @@ export default function ChatWindow({
                               )}
                             </div>
 
-                            {/* Action buttons */}
+                           
                             <div
                               className={`flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity ${
                                 isUser ? "justify-end" : "justify-start"
@@ -262,7 +262,7 @@ export default function ChatWindow({
           </>
         )}
       </div>
-      {/* Auto-scroll anchor */}
+      
       <div ref={bottomRef} />
     </ScrollArea>
   )

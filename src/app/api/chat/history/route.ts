@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     { $sort: { updatedAt: -1 } },
   ]);
 
-  // Clean up the results to use first user message as title, fallback to latest message
+  
   const chats = messages.map(chat => ({
     _id: chat._id,
     title: chat.firstUserMessage || chat.latestMessage,

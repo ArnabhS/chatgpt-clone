@@ -39,10 +39,9 @@ export default function ChatLayout() {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  // Add local image loading state
   const [isImageLoading, setIsImageLoading] = useState(false)
 
-  // useChat for text-only streaming
+ 
   const {
     messages: chatMessages,
     input,
@@ -61,14 +60,12 @@ export default function ChatLayout() {
   })
 
 
-  // Local state for image messages
   const [messages, setMessages] = useState<Message[]>([])
 
-  // Add error handling
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
 
-  // Use messages from image logic if present, else useChat's messages (filtered to 'user'/'assistant')
+ 
   const displayMessages: Message[] = messages.length > 0
     ? messages
     : (chatMessages
@@ -80,7 +77,7 @@ export default function ChatLayout() {
         })) as Message[])
 
 
-  // Custom submit handler for FormData
+ 
   const handleSubmit = async (formData: FormData | React.FormEvent<HTMLFormElement>) => {
     if (typeof (formData as React.FormEvent<HTMLFormElement>).preventDefault === 'function') {
       handleTextSubmit(formData as React.FormEvent<HTMLFormElement>)
@@ -173,7 +170,7 @@ export default function ChatLayout() {
       return
     }
 
-    // Handle PDF files like images, but treat the response as text
+    
     if (file && file.type === 'application/pdf') {
       const message = fd.get('message') as string
       const pdfName = file.name
@@ -227,7 +224,7 @@ export default function ChatLayout() {
                 }
               }
             }
-            // If assistantMessage is still empty after streaming, show error
+           
             if (!assistantMessage) {
               const errorMsg = 'Sorry, no response was received from the AI.';
               setErrorMessage(errorMsg);
@@ -256,12 +253,11 @@ export default function ChatLayout() {
       return
     }
 
-    // For DOC/TXT or no file, use useChat's handleSubmit
+   
     handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
   }
 
 
-  // Start a new chat
   const startNewChat = () => {
     const newChatId = uuidv4()
     setCurrentChatId(newChatId)
@@ -270,7 +266,7 @@ export default function ChatLayout() {
   }
 
 
-  // Load an existing chat
+
   const loadChat = async (chatId: string) => {
     try {
       const response = await fetch('/api/chat/history', {
@@ -295,7 +291,7 @@ export default function ChatLayout() {
   }
 
 
-  // Start a new chat when component first loads
+  
   useEffect(() => {
     if (!currentChatId) {
       startNewChat()
@@ -303,7 +299,7 @@ export default function ChatLayout() {
   }, [currentChatId])
 
 
-  // Handle model switching with validation
+  
   const handleModelSwitch = (newModel: string) => {
     if ((messages.length === 0) && (chatMessages.length === 0)) {
       setSelectedModel(newModel);
@@ -319,12 +315,12 @@ export default function ChatLayout() {
   };
 
 
-  // Replaces user message and regenerates assistant reply
+
   const handleEditMessage = async (formData: FormData) => {
     const newMessage = formData.get('message') as string;
     const editIndex = Number(formData.get('editIndex'));
 
-    // Truncate messages up to and including the edited message
+   
     const baseMessages = displayMessages.filter((msg) => msg.role === 'user' || msg.role === 'assistant');
     const updated = baseMessages.slice(0, editIndex);
     updated.push({
@@ -338,7 +334,7 @@ export default function ChatLayout() {
     setInput('');
     setIsImageLoading(true);
 
-    // POST to /api/chat as JSON
+    
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -370,9 +366,9 @@ export default function ChatLayout() {
                     role: 'assistant' as const,
                     content: assistantMessage || 'Sorry, no response was received from the AI.',
                   };
-                  // Update both states: useChat and local, then clear local so useChat takes over
+                  
                   setChatMessages([...updated, assistantMsg]);
-                  setMessages([]); // Clear local messages so useChat takes over
+                  setMessages([]); 
                   setIsImageLoading(false);
                   return;
                 }
@@ -389,11 +385,11 @@ export default function ChatLayout() {
               }
             }
           }
-          // If assistantMessage is still empty after streaming, show error
+         
           if (!assistantMessage) {
             const errorMsg = 'Sorry, no response was received from the AI.';
             setErrorMessage(errorMsg);
-            setMessages([]); // Clear local messages
+            setMessages([]); 
             setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
           }
           setIsImageLoading(false);
@@ -401,14 +397,14 @@ export default function ChatLayout() {
           setIsImageLoading(false);
           const errorMsg = 'Sorry, there was a problem reading the response stream.';
           setErrorMessage(errorMsg);
-          setMessages([]); // Clear local messages
+          setMessages([]); 
           setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         }
       } else {
         setIsImageLoading(false);
         const errorMsg = 'Sorry, the server returned an error. Please try again.';
         setErrorMessage(errorMsg);
-        setMessages([]); // Clear local messages
+        setMessages([]);
         setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
       }
     } catch (error) {
@@ -423,7 +419,7 @@ export default function ChatLayout() {
 
   return (
     <div className="flex h-screen bg-[#212121]">
-      {/* Desktop Sidebar */}
+     
       <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-10' : 'w-[260px]'} relative`}>
         <AppSidebar 
           onNewChat={startNewChat}
@@ -432,7 +428,7 @@ export default function ChatLayout() {
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
         />
-        {/* Collapse/Expand Button - always absolutely positioned */}
+      
         <button
           type="button"
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -446,7 +442,7 @@ export default function ChatLayout() {
           </svg>
         </button>
       </div>
-      {/* Mobile Sidebar */}
+     
       <div className="md:hidden">
         <AppSidebar
           isSheet
@@ -457,9 +453,9 @@ export default function ChatLayout() {
           currentChatId={currentChatId}
         />
       </div>
-      {/* Main Content */}
+     
       <div className="flex flex-col flex-1 relative bg-[#212121]">
-        {/* Header */}
+       
         <header className="flex h-14 items-center justify-between border-b border-[#303030] bg-[#212121] px-4">
           <div className="flex items-center gap-2">
             <Button
@@ -569,7 +565,7 @@ export default function ChatLayout() {
             </div>
           </div>
         )}
-        {/* Render error message above chat window */}
+        
         {errorMessage && (
           <div className="text-red-400 text-center py-2">{errorMessage}</div>
         )}
