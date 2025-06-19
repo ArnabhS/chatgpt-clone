@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs"
 import Image from "next/image";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ChatItem {
   _id: string;
@@ -123,18 +124,41 @@ export function AppSidebar({
             </div>
 
             <div className="space-y-1 mb-6">
-              <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
                 <Library className="w-4 h-4 mr-3" />
                 Library
               </Button>
-              <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
-                <Sparkles className="w-4 h-4 mr-3" />
-                Sora
-              </Button>
-              <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Coming Soon !
+                </TooltipContent>
+              </Tooltip>
+             
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
+                    <Sparkles className="w-4 h-4 mr-3" />
+                    Sora
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Coming Soon !
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
                 <Zap className="w-4 h-4 mr-3" />
                 GPTs
               </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Coming Soon !
+                </TooltipContent>
+              </Tooltip>
+              
             </div>
 
             <div>
@@ -161,13 +185,20 @@ export function AppSidebar({
         </div>
 
         <div className="p-3 border-t border-[#303030] space-y-1">
-          <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
-            <Crown className="w-4 h-4 mr-3" />
-            <div className="flex flex-col items-start">
-              <span className="text-sm font-medium">Upgrade plan</span>
-              <span className="text-xs text-gray-400">More access to the best models</span>
-            </div>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white">
+                <Crown className="w-4 h-4 mr-3" />
+                <div className="flex flex-col items-start">
+                  <span className="text-sm font-medium">Upgrade plan</span>
+                  <span className="text-xs text-gray-400">More access to the best models</span>
+                </div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+            Coming Soon !
+            </TooltipContent>
+          </Tooltip>
           
         </div>
       </div>

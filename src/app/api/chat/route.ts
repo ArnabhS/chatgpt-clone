@@ -10,6 +10,7 @@ import openaiClient from '@/lib/openai-client';
 import memory, { storeMessages } from '@/lib/chat-memory';
 import { saveTempFile, deleteTempFile } from '@/lib/file-utils';
 
+
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   let tempFilePath: string | undefined;
 
   const contentType = req.headers.get('content-type') || '';
-
+  
   if (contentType.includes('application/json')) {
     console.log("receiving text")
     body = await req.json();
@@ -135,7 +136,7 @@ export async function POST(req: Request) {
         })();
         return response;
       } else if (file.type === 'application/pdf') {
-        // PDF handling
+        // PDF handling (stream like images)
         try {
           console.log('Extracting PDF text...');
           // Save with .pdf extension and original filename if possible
@@ -147,6 +148,51 @@ export async function POST(req: Request) {
           const { extractTextFromPDF } = await import('@/lib/pdf-extractor');
           const extractedText = await extractTextFromPDF(tempFilePath);
           userMessage.content += `\n\n[PDF Content]:\n${extractedText}`;
+
+          // Stream OpenAI text response in custom format
+          const safeMessages = trimMessagesToTokenLimit([...contextMessages, userMessage], modelName).map(m => ({
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content
+          }));
+          const textResponse = await openaiClient.chat.completions.create({
+            model: modelName,
+            messages: safeMessages,
+            max_tokens: 1000,
+            stream: true,
+          });
+          const stream = new ReadableStream({
+            async start(controller) {
+              try {
+                for await (const chunk of textResponse) {
+                  const content = chunk.choices[0]?.delta?.content;
+                  if (content) {
+                    fullText += content;
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: content })}\n\n`));
+                  }
+                }
+                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+                controller.close();
+              } catch (error) {
+                controller.error(error);
+              }
+            }
+          });
+          const response = new Response(stream, {
+            headers: {
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Transfer-Encoding': 'chunked',
+            },
+          });
+          (async () => {
+            try {
+              if (fullText) {
+                await storeMessages(userId, chatId, userMessage.content, fullText);
+              }
+            } catch (error) {
+              console.error('Error storing conversation:', error);
+            }
+          })();
+          return response;
         } catch (err) {
           console.error('PDF extraction error:', err);
           return new Response(JSON.stringify({ error: 'Failed to extract text from PDF.' }), { status: 500 });
@@ -156,33 +202,7 @@ export async function POST(req: Request) {
             await deleteTempFile(tempFilePath);
           }
         }
-      } else if (
-        file.type === 'application/msword' ||
-        file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ) {
-        // DOC/DOCX handling
-        try {
-          console.log('Extracting DOC/DOCX text...');
-          // Save the buffer to a temporary file with appropriate extension
-          const extension = file.type === 'application/msword' ? '.doc' : '.docx';
-          tempFilePath = await saveTempFile(buffer, extension);
-          console.log('Temporary document file saved at:', tempFilePath);
-          
-          const { extractTextFromDoc } = await import('@/lib/doc-extractor');
-          const extractedText = await extractTextFromDoc(tempFilePath);
-          userMessage.content += `\n\n[Document Content]:\n${extractedText}`;
-        } catch (err) {
-          console.error('DOC/DOCX extraction error:', err);
-          return new Response(JSON.stringify({ error: 'Failed to extract text from document.' }), { status: 500 });
-        } finally {
-          // Clean up the temporary file
-          if (tempFilePath) {
-            await deleteTempFile(tempFilePath);
-          }
-        }
-      } else {
-        return new Response(JSON.stringify({ error: 'Unsupported file type' }), { status: 400 });
-      }
+      } 
     } catch (err) {
       console.error('File processing error:', err);
       return new Response(JSON.stringify({ error: 'Failed to process file.' }), { status: 500 });

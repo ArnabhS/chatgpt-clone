@@ -123,6 +123,16 @@ export default function ChatWindow({
                                 </div>
                               )}
                               {/* PDF Display */}
+                              {(msg.pdfName && !msg.pdfData) && (
+                                <div className={`mb-3 flex items-center gap-2 ${isUser ? "text-left" : ""}`}>
+                                  {/* Simple PDF icon using SVG */}
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" fill="#E53E3E"/>
+                                    <text x="7" y="17" fontSize="10" fill="white" fontFamily="Arial" fontWeight="bold">PDF</text>
+                                  </svg>
+                                  <span className="text-sm text-red-300 font-semibold">{msg.pdfName}</span>
+                                </div>
+                              )}
                               {msg.pdfData && (
                                 <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
                                   <a href={msg.pdfData} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">

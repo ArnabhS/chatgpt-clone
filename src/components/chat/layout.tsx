@@ -172,7 +172,90 @@ export default function ChatLayout() {
       return
     }
 
-    // For PDF/DOC/TXT or no file, use useChat's handleSubmit
+    // Handle PDF files like images, but treat the response as text
+    if (file && file.type === 'application/pdf') {
+      const message = fd.get('message') as string
+      const pdfName = file.name
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: 'user',
+        content: message || (pdfName ? `Uploaded PDF: ${pdfName}` : ''),
+        pdfName: pdfName || undefined,
+      }
+      setMessages(prev => [...prev, userMessage])
+      setInput('')
+      setIsImageLoading(true)
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          body: fd,
+        })
+        if (response.ok) {
+          const reader = response.body?.getReader()
+          if (reader) {
+            let assistantMessage = ''
+            let gotFirstChunk = false
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              const chunk = new TextDecoder().decode(value)
+              const lines = chunk.split('\n')
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6)
+                  if (data === '[DONE]') {
+                    const assistantMsg: Message = {
+                      id: uuidv4(),
+                      role: 'assistant',
+                      content: assistantMessage || 'Sorry, no response was received from the AI.'
+                    }
+                    setMessages(prev => [...prev, assistantMsg])
+                    setIsImageLoading(false)
+                    return
+                  }
+                  try {
+                    const parsed = JSON.parse(data)
+                    if (parsed.text) {
+                      assistantMessage += parsed.text
+                      if (!gotFirstChunk) {
+                        setIsImageLoading(false)
+                        gotFirstChunk = true
+                      }
+                    }
+                  } catch {}
+                }
+              }
+            }
+            // If assistantMessage is still empty after streaming, show error
+            if (!assistantMessage) {
+              const errorMsg = 'Sorry, no response was received from the AI.';
+              setErrorMessage(errorMsg);
+              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+            }
+            setIsImageLoading(false)
+          } else {
+            setIsImageLoading(false)
+            const errorMsg = 'Sorry, there was a problem reading the response stream.';
+            setErrorMessage(errorMsg);
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+          }
+        } else {
+          setIsImageLoading(false)
+          const errorMsg = 'Sorry, the server returned an error. Please try again.';
+          setErrorMessage(errorMsg);
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+        }
+      } catch (error) {
+        setIsImageLoading(false)
+        const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
+        setErrorMessage(errorMsg);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+        console.error('Error submitting message:', error)
+      }
+      return
+    }
+
+    // For DOC/TXT or no file, use useChat's handleSubmit
     handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
   }
 
