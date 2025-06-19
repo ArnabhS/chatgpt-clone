@@ -24,12 +24,14 @@ export async function POST(req: Request) {
   let formData: FormData | undefined;
   let body: unknown;
   let tempFilePath: string | undefined;
+  let fullText = '';
 
   const contentType = req.headers.get('content-type') || '';
   
   if (contentType.includes('application/json')) {
     console.log("receiving text")
     body = await req.json();
+    console.log(body)
     const jsonBody = body as Record<string, unknown>;
     const messagesArr = jsonBody.messages as Array<{ role: string; content: string }>;
     let lastUserMessage = '';
@@ -41,6 +43,53 @@ export async function POST(req: Request) {
     userId = (jsonBody.userId as string) || 'guest';
     existingChatId = jsonBody.chatId as string;
     modelName = (jsonBody.modelName as string) || DEFAULT_MODEL;
+    // Handle edit streaming
+    if (jsonBody.editing === true) {
+      // Stream OpenAI text response in custom format for editing
+      const safeMessages = trimMessagesToTokenLimit(messagesArr, modelName).map(m => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content
+      }));
+      const textResponse = await openaiClient.chat.completions.create({
+        model: modelName,
+        messages: safeMessages,
+        max_tokens: 1000,
+        stream: true,
+      });
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of textResponse) {
+              const content = chunk.choices[0]?.delta?.content;
+              if (content) {
+                fullText += content;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: content })}\n\n`));
+              }
+            }
+            controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+      const response = new Response(stream, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Transfer-Encoding': 'chunked',
+        },
+      });
+      (async () => {
+        try {
+          if (fullText) {
+            await storeMessages(userId, existingChatId || uuidv4(), message || '', fullText);
+          }
+        } catch (error) {
+          console.error('Error storing conversation:', error);
+        }
+      })();
+      return response;
+    }
   } else if (contentType.includes('multipart/form-data')) {
     console.log('file received')
     formData = await req.formData();
@@ -67,8 +116,6 @@ export async function POST(req: Request) {
         content: item.content
       }))
     : [];
-
-  let fullText = '';
 
   if (file && typeof file === 'string') {
     console.error('File is a string, not a File object:', file);
@@ -215,7 +262,7 @@ export async function POST(req: Request) {
     model: openai(modelName),
     messages: trimMessagesToTokenLimit([...contextMessages, userMessage], modelName) as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
   });
-  console.log(result)
+  
   const stream = result.toDataStreamResponse();
   (async () => {
     try {

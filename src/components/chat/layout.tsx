@@ -37,6 +37,7 @@ export default function ChatLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   // Add local image loading state
   const [isImageLoading, setIsImageLoading] = useState(false)
@@ -123,7 +124,7 @@ export default function ChatLayout() {
                   if (data === '[DONE]') {
                     const assistantMsg: Message = {
                       id: uuidv4(),
-                      role: 'assistant',
+                      role: 'assistant' as const,
                       content: assistantMessage || 'Sorry, no response was received from the AI.'
                     }
                     setMessages(prev => [...prev, assistantMsg])
@@ -147,26 +148,26 @@ export default function ChatLayout() {
             if (!assistantMessage) {
               const errorMsg = 'Sorry, no response was received from the AI.';
               setErrorMessage(errorMsg);
-              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
             }
             setIsImageLoading(false)
           } else {
             setIsImageLoading(false)
             const errorMsg = 'Sorry, there was a problem reading the response stream.';
             setErrorMessage(errorMsg);
-            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
           }
         } else {
           setIsImageLoading(false)
           const errorMsg = 'Sorry, the server returned an error. Please try again.';
           setErrorMessage(errorMsg);
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         }
       } catch (error) {
         setIsImageLoading(false)
         const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
         setErrorMessage(errorMsg);
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         console.error('Error submitting message:', error)
       }
       return
@@ -206,7 +207,7 @@ export default function ChatLayout() {
                   if (data === '[DONE]') {
                     const assistantMsg: Message = {
                       id: uuidv4(),
-                      role: 'assistant',
+                      role: 'assistant' as const,
                       content: assistantMessage || 'Sorry, no response was received from the AI.'
                     }
                     setMessages(prev => [...prev, assistantMsg])
@@ -230,26 +231,26 @@ export default function ChatLayout() {
             if (!assistantMessage) {
               const errorMsg = 'Sorry, no response was received from the AI.';
               setErrorMessage(errorMsg);
-              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
             }
             setIsImageLoading(false)
           } else {
             setIsImageLoading(false)
             const errorMsg = 'Sorry, there was a problem reading the response stream.';
             setErrorMessage(errorMsg);
-            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
           }
         } else {
           setIsImageLoading(false)
           const errorMsg = 'Sorry, the server returned an error. Please try again.';
           setErrorMessage(errorMsg);
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         }
       } catch (error) {
         setIsImageLoading(false)
         const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
         setErrorMessage(errorMsg);
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         console.error('Error submitting message:', error)
       }
       return
@@ -319,22 +320,100 @@ export default function ChatLayout() {
 
 
   // Replaces user message and regenerates assistant reply
-  const handleEditMessage = async (index: number, newMessage: string) => {
-    const updated = [...(messages.length > 0 ? messages : chatMessages)]
-    updated[index] = { ...updated[index], content: newMessage }
-    const sliceBefore = updated.slice(0, index + 1)
-    await fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({
-        messages: sliceBefore,
-        userId: user?.id || "guest",
-        chatId: currentChatId,
-        modelName: selectedModel,
-      }),
-    })
-    window.location.reload()
-  }
+  const handleEditMessage = async (formData: FormData) => {
+    const newMessage = formData.get('message') as string;
+    const editIndex = Number(formData.get('editIndex'));
 
+    // Truncate messages up to and including the edited message
+    const baseMessages = displayMessages.filter((msg) => msg.role === 'user' || msg.role === 'assistant');
+    const updated = baseMessages.slice(0, editIndex);
+    updated.push({
+      ...baseMessages[editIndex],
+      content: newMessage,
+    });
+
+    setChatMessages(updated);
+    setMessages(updated);
+    setEditingIndex(null);
+    setInput('');
+    setIsImageLoading(true);
+
+    // POST to /api/chat as JSON
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updated,
+          userId: user?.id || "guest",
+          chatId: currentChatId,
+          modelName: selectedModel,
+          editing: true
+        }),
+      });
+      if (response.ok) {
+        const reader = response.body?.getReader();
+        if (reader) {
+          let assistantMessage = '';
+          let gotFirstChunk = false;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = new TextDecoder().decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') {
+                  const assistantMsg = {
+                    id: uuidv4(),
+                    role: 'assistant' as const,
+                    content: assistantMessage || 'Sorry, no response was received from the AI.',
+                  };
+                  setMessages(prev => [...prev, assistantMsg]);
+                  setIsImageLoading(false);
+                  return;
+                }
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.text) {
+                    assistantMessage += parsed.text;
+                    if (!gotFirstChunk) {
+                      setIsImageLoading(false);
+                      gotFirstChunk = true;
+                    }
+                  }
+                } catch {}
+              }
+            }
+          }
+          // If assistantMessage is still empty after streaming, show error
+          if (!assistantMessage) {
+            const errorMsg = 'Sorry, no response was received from the AI.';
+            setErrorMessage(errorMsg);
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+          }
+          setIsImageLoading(false);
+        } else {
+          setIsImageLoading(false);
+          const errorMsg = 'Sorry, there was a problem reading the response stream.';
+          setErrorMessage(errorMsg);
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+        }
+      } else {
+        setIsImageLoading(false);
+        const errorMsg = 'Sorry, the server returned an error. Please try again.';
+        setErrorMessage(errorMsg);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+      }
+    } catch (error) {
+      setIsImageLoading(false);
+      const errorMsg = 'Sorry, something went wrong while processing your edit. Please try again.';
+      setErrorMessage(errorMsg);
+      setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+      console.error('Error submitting edit:', error);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#212121]">
@@ -458,18 +537,21 @@ export default function ChatLayout() {
         </header>
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto">
-          <ChatWindow
-            messages={displayMessages}
-            onEditMessage={handleEditMessage}
-            isLoading={isLoading || isImageLoading}
-            input={input}
-            onInputChange={handleInputChange}
-            onSubmit={handleSubmit}
-          />
+        <ChatWindow
+  messages={displayMessages}
+  onEditSubmit={handleEditMessage}
+  isLoading={isLoading || isImageLoading}
+  input={input}
+  onInputChange={handleInputChange}
+  onSubmit={handleSubmit}
+  editingIndex={editingIndex}
+  setEditingIndex={setEditingIndex}
+/>
+
         </div>
         {/* Token Usage Indicator */}
         <TokenUsage messages={displayMessages} selectedModel={selectedModel} />
-        {displayMessages.length > 0 && (
+        {displayMessages.length > 0 && editingIndex === null && (
           <div className="w-full bg-[#212121] border-t border-[#303030] sticky bottom-0 z-20">
             <div className="max-w-3xl mx-auto px-4">
               <ChatInput
