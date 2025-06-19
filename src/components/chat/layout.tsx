@@ -12,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { v4 as uuidv4 } from 'uuid'
 import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
 import { validateModelSwitch } from '@/lib/model-utils'
+import { useChat } from '@ai-sdk/react'
+import type { UIMessage } from '@ai-sdk/ui-utils'
 
 interface Message {
   id: string
@@ -27,89 +29,108 @@ export default function ChatLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
+
+  // useChat for text-only streaming
+  const {
+    messages: chatMessages,
+    input,
+    setInput,
+    isLoading,
+    handleInputChange,
+    handleSubmit: handleTextSubmit,
+    setMessages: setChatMessages,
+  } = useChat({
+    api: "/api/chat",
+    body: {
+      userId: user?.id || "guest",
+      chatId: currentChatId,
+      modelName: selectedModel,
+    },
+  })
+
+  // Local state for image messages
   const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+
+  // Use messages from image logic if present, else useChat's messages (filtered to 'user'/'assistant')
+  const displayMessages: Message[] = messages.length > 0
+    ? messages
+    : (chatMessages
+        .filter((msg: UIMessage) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg: UIMessage) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })) as Message[])
 
   // Custom submit handler for FormData
-  const handleSubmit = async (formData: FormData) => {
-    // Add additional data to FormData
-    formData.append('userId', user?.id || "guest")
-    formData.append('chatId', currentChatId || '')
-    formData.append('modelName', selectedModel)
-
-    const message = formData.get('message') as string
-    const imageData = formData.get('imageData') as string
-    const imageName = formData.get('imageName') as string
-
-    // Add user message to chat immediately
-    const userMessage: Message = {
-      id: uuidv4(),
-      role: 'user',
-      content: message || '',
-      imageData: imageData || undefined,
-      imageName: imageName || undefined
+  const handleSubmit = async (formData: FormData | React.FormEvent<HTMLFormElement>) => {
+    // If called from a form event, delegate to useChat's handleSubmit
+    if (typeof (formData as React.FormEvent<HTMLFormElement>).preventDefault === 'function') {
+      handleTextSubmit(formData as React.FormEvent<HTMLFormElement>)
+      return
     }
-
-    setMessages(prev => [...prev, userMessage])
-    setInput('')
-    setIsLoading(true)
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (response.ok) {
-        // Read the streaming response
-        const reader = response.body?.getReader()
-        if (reader) {
-          let assistantMessage = ''
-          
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            
-            const chunk = new TextDecoder().decode(value)
-            const lines = chunk.split('\n')
-            
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                if (data === '[DONE]') {
-                  // Add assistant message to chat
-                  const assistantMsg: Message = {
-                    id: uuidv4(),
-                    role: 'assistant',
-                    content: assistantMessage
+    // Otherwise, it's a FormData (image upload)
+    const fd = formData as FormData
+    const message = fd.get('message') as string
+    const imageData = fd.get('imageData') as string
+    const imageName = fd.get('imageName') as string
+    if (imageData) {
+      fd.append('userId', user?.id || "guest")
+      fd.append('chatId', currentChatId || '')
+      fd.append('modelName', selectedModel)
+      const userMessage: Message = {
+        id: uuidv4(),
+        role: 'user',
+        content: message || '',
+        imageData: imageData || undefined,
+        imageName: imageName || undefined
+      }
+      setMessages(prev => [...prev, userMessage])
+      setInput('')
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          body: fd,
+        })
+        if (response.ok) {
+          const reader = response.body?.getReader()
+          if (reader) {
+            let assistantMessage = ''
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              const chunk = new TextDecoder().decode(value)
+              const lines = chunk.split('\n')
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6)
+                  if (data === '[DONE]') {
+                    const assistantMsg: Message = {
+                      id: uuidv4(),
+                      role: 'assistant',
+                      content: assistantMessage
+                    }
+                    setMessages(prev => [...prev, assistantMsg])
+                    return
                   }
-                  setMessages(prev => [...prev, assistantMsg])
-                  setIsLoading(false)
-                  return
-                }
-                
-                try {
-                  const parsed = JSON.parse(data)
-                  if (parsed.text) {
-                    assistantMessage += parsed.text
-                  }
-                } catch {
-                  // Ignore parsing errors
+                  try {
+                    const parsed = JSON.parse(data)
+                    if (parsed.text) {
+                      assistantMessage += parsed.text
+                    }
+                  } catch {}
                 }
               }
             }
           }
         }
+      } catch (error) {
+        console.error('Error submitting message:', error)
       }
-    } catch (error) {
-      console.error('Error submitting message:', error)
-      setIsLoading(false)
+    } else {
+      // fallback: should not happen, but just in case
+      handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
     }
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value)
   }
 
   // Start a new chat
@@ -117,6 +138,7 @@ export default function ChatLayout() {
     const newChatId = uuidv4()
     setCurrentChatId(newChatId)
     setMessages([])
+    setChatMessages([])
   }
 
   // Load an existing chat
@@ -132,11 +154,11 @@ export default function ChatLayout() {
           userId: user?.id || "guest",
         }),
       })
-
       if (response.ok) {
         const data = await response.json()
         setCurrentChatId(chatId)
         setMessages(data.messages || [])
+        setChatMessages(data.messages || [])
       }
     } catch (error) {
       console.error('Error loading chat:', error)
@@ -152,16 +174,14 @@ export default function ChatLayout() {
 
   // Handle model switching with validation
   const handleModelSwitch = (newModel: string) => {
-    if (messages.length === 0) {
+    if ((messages.length === 0) && (chatMessages.length === 0)) {
       setSelectedModel(newModel);
       return;
     }
-
-    const validation = validateModelSwitch(messages, newModel);
+    const validation = validateModelSwitch(messages.length > 0 ? messages : chatMessages, newModel);
     if (validation.canSwitch) {
       setSelectedModel(newModel);
     } else {
-      // You could show a toast notification here
       console.warn('Cannot switch model:', validation.reason);
       alert(`Cannot switch to ${MODEL_CONFIGS[newModel]?.name}: ${validation.reason}`);
     }
@@ -169,10 +189,8 @@ export default function ChatLayout() {
 
   // Replaces user message and regenerates assistant reply
   const handleEditMessage = async (index: number, newMessage: string) => {
-    const updated = [...messages]
+    const updated = [...(messages.length > 0 ? messages : chatMessages)]
     updated[index] = { ...updated[index], content: newMessage }
-
-    // Slice only up to edited user message
     const sliceBefore = updated.slice(0, index + 1)
     await fetch("/api/chat", {
       method: "POST",
@@ -183,21 +201,19 @@ export default function ChatLayout() {
         modelName: selectedModel,
       }),
     })
-
-    window.location.reload() // force rerender (can be optimized)
+    window.location.reload()
   }
 
   return (
     <div className="flex h-screen bg-[#212121]">
       {/* Desktop Sidebar */}
-      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}>
+      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}> 
         <AppSidebar 
           onNewChat={startNewChat}
           onLoadChat={loadChat}
           currentChatId={currentChatId}
         />
       </div>
-
       {/* Collapse Button */}
       <Button
         variant="ghost"
@@ -208,7 +224,6 @@ export default function ChatLayout() {
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </Button>
-
       {/* Mobile Sidebar */}
       <div className="md:hidden">
         <AppSidebar 
@@ -220,7 +235,6 @@ export default function ChatLayout() {
           currentChatId={currentChatId}
         />
       </div>
-
       {/* Main Content */}
       <div className="flex flex-col flex-1 relative bg-[#212121]">
         {/* Header */}
@@ -269,11 +283,10 @@ export default function ChatLayout() {
             </Button>
           </div>
         </header>
-
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto">
           <ChatWindow
-            messages={messages}
+            messages={displayMessages}
             onEditMessage={handleEditMessage}
             isLoading={isLoading}
             input={input}
@@ -281,11 +294,9 @@ export default function ChatLayout() {
             onSubmit={handleSubmit}
           />
         </div>
-        
         {/* Token Usage Indicator */}
-        <TokenUsage messages={messages} selectedModel={selectedModel} />
-        
-        {messages.length > 0 && (
+        <TokenUsage messages={displayMessages} selectedModel={selectedModel} />
+        {displayMessages.length > 0 && (
           <div className="w-full bg-[#212121] border-t border-gray-700 sticky bottom-0 z-20">
             <div className="max-w-3xl mx-auto px-4">
               <ChatInput

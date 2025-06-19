@@ -22,15 +22,43 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   await connectDB();
 
-  const formData = await req.formData();
-  const message = formData.get('message') as string;
-  const imageFile = formData.get('image') as File;
-  
-  // Get other data from formData or use defaults
-  const userId = formData.get('userId') as string || 'guest';
-  const existingChatId = formData.get('chatId') as string;
-  const modelName = (formData.get('modelName') as string) || DEFAULT_MODEL;
-  
+  let message: string | undefined;
+  let imageFile: File | undefined;
+  let userId: string = 'guest';
+  let existingChatId: string | undefined;
+  let modelName: string = DEFAULT_MODEL;
+  let formData: FormData | undefined;
+  let body: unknown;
+
+  const contentType = req.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    body = await req.json();
+    const jsonBody = body as Record<string, unknown>;
+    // Vercel SDK sends an array of messages
+    const messagesArr = jsonBody.messages as Array<{ role: string; content: string }>;
+    let lastUserMessage = '';
+    if (Array.isArray(messagesArr) && messagesArr.length > 0) {
+      // Find the last user message (or just the last message)
+      const lastMsg = messagesArr[messagesArr.length - 1];
+      lastUserMessage = lastMsg.content;
+    }
+    message = lastUserMessage;
+    userId = (jsonBody.userId as string) || 'guest';
+    existingChatId = jsonBody.chatId as string;
+    modelName = (jsonBody.modelName as string) || DEFAULT_MODEL;
+    // No image in JSON
+  } else if (contentType.includes('multipart/form-data')) {
+    formData = await req.formData();
+    message = (formData.get('message') as string) || '';
+    imageFile = formData.get('image') as File;
+    userId = (formData.get('userId') as string) || 'guest';
+    existingChatId = formData.get('chatId') as string;
+    modelName = (formData.get('modelName') as string) || DEFAULT_MODEL;
+  } else {
+    return new Response(JSON.stringify({ error: 'Unsupported Content-Type' }), { status: 400 });
+  }
+
   // Generate a new chatId if this is a new conversation
   const chatId = existingChatId || uuidv4();
   
@@ -39,13 +67,14 @@ export async function POST(req: Request) {
     role: 'user' as const,
     content: message || ''
   };
-  
+  console.log(userMessage)
   const searchQuery = userMessage.content;
   
   const searchResults = await memory.search(searchQuery, { userId: userId });
   
+  // Ensure searchResults is always an array
   const contextMessages = Array.isArray(searchResults) 
-    ? searchResults.map(item => ({
+    ? searchResults.map((item: { role: string; content: string }) => ({
         role: item.role as 'user' | 'assistant',
         content: item.content
       }))
