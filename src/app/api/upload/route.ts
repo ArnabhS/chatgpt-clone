@@ -14,17 +14,17 @@ interface CloudinaryUploadResult {
 
 export async function POST(req: NextRequest) {
   try {
-    const data = await req.formData();
-    const file = data.get("file") as File;
+  const data = await req.formData();
+  const file = data.get("file") as File;
 
     if (!file) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = Buffer.from(await file.arrayBuffer());
 
     const upload = await new Promise<CloudinaryUploadResult>((resolve, reject) => {
-      cloudinary.uploader
+    cloudinary.uploader
         .upload_stream(
           {
             resource_type: "image",
@@ -36,12 +36,12 @@ export async function POST(req: NextRequest) {
             ]
           },
           function (error, result) {
-            if (error) reject(error);
+        if (error) reject(error);
             else resolve(result as CloudinaryUploadResult);
           }
         )
-        .end(buffer);
-    });
+      .end(buffer);
+  });
 
     return NextResponse.json({
       url: upload.secure_url,
@@ -56,5 +56,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       error: "Failed to upload file. Please try again."
     }, { status: 500 });
-  }
+}
 } 

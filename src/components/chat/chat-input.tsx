@@ -4,24 +4,16 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Paperclip, Mic, ArrowUp, X } from "lucide-react"
+import { Paperclip, Mic, ArrowUp, X, FileText, Image as ImageIcon, FileAudio } from "lucide-react"
+import { Loader } from "../ui/Loader"
 
-function Loader() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg">
-      <svg className="animate-spin h-6 w-6 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-      </svg>
-    </div>
-  )
-}
 
 interface SelectedFile {
   file: File
-  preview: string
-  cloudUrl?: string
+  preview?: string // for images
+  cloudUrl?: string // for images
   uploading?: boolean
+  type: 'image' | 'pdf' | 'txt' | 'audio' | 'other'
 }
 
 export default function ChatInput({
@@ -35,187 +27,183 @@ export default function ChatInput({
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   onSubmit: (formData: FormData) => void
 }) {
-  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
 
+  // Helper to get file type
+  const getFileType = (file: File): SelectedFile['type'] => {
+    if (file.type.startsWith('image/')) return 'image'
+    if (file.type === 'application/pdf') return 'pdf'
+    if (file.type === 'text/plain') return 'txt'
+    if (file.type.startsWith('audio/')) return 'audio'
+    return 'other'
+  }
+
+  // Helper to get icon
+  const getFileIcon = (type: SelectedFile['type']) => {
+    if (type === 'image') return <ImageIcon className="w-5 h-5 text-blue-400" />
+    if (type === 'pdf') return <FileText className="w-5 h-5 text-red-400" />
+    if (type === 'txt') return <FileText className="w-5 h-5 text-gray-400" />
+    if (type === 'audio') return <FileAudio className="w-5 h-5 text-green-400" />
+    return <FileText className="w-5 h-5 text-gray-400" />
+  }
+
+  // Handle file selection (images, pdf, txt, audio)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file && file.type.startsWith('image/')) {
-      const preview = URL.createObjectURL(file)
-      setSelectedFile({ file, preview, uploading: true })
-      // Upload to Cloudinary
-      const formData = new FormData()
-      formData.append('file', file)
-      try {
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-        const data = await res.json()
-        if (data.url) {
-          setSelectedFile({ file, preview, cloudUrl: data.url, uploading: false })
-        } else {
-          setSelectedFile({ file, preview, uploading: false })
+    const files = Array.from(e.target.files || [])
+    for (const file of files) {
+      const type = getFileType(file)
+      let preview: string | undefined = undefined
+      let uploading = false
+      if (type === 'image') {
+        preview = URL.createObjectURL(file)
+        uploading = true
+        setSelectedFiles(prev => [...prev, { file, preview, uploading, type }])
+        // Upload to Cloudinary
+        const formData = new FormData()
+        formData.append('file', file)
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          })
+          const data = await res.json()
+          if (data.url) {
+            setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, cloudUrl: data.url, uploading: false } : f))
+          } else {
+            setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, uploading: false } : f))
+          }
+        } catch {
+          setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, uploading: false } : f))
         }
-      } catch {
-        setSelectedFile({ file, preview, uploading: false })
+      } else {
+        setSelectedFiles(prev => [...prev, { file, type }])
       }
     }
-    // Reset input value to allow selecting the same file again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ""
+    if (audioInputRef.current) audioInputRef.current.value = ""
   }
 
-  const handleRemoveFile = () => {
-    if (selectedFile) {
-      URL.revokeObjectURL(selectedFile.preview)
-      setSelectedFile(null)
-    }
+  // Remove file
+  const handleRemoveFile = (file: File) => {
+    setSelectedFiles(prev => prev.filter(f => f.file !== file))
+    if (file.type.startsWith('image/')) URL.revokeObjectURL(URL.createObjectURL(file))
   }
 
+  // Submit
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
-    // Create FormData with both text and file
     const formData = new FormData()
     formData.append('message', input)
-    if (selectedFile) {
-      formData.append('image', selectedFile.file)
-      // Use Cloudinary URL for chat display
-      if (selectedFile.cloudUrl) {
-        formData.append('imageData', selectedFile.cloudUrl)
-      } else {
-        formData.append('imageData', selectedFile.preview)
+    for (const f of selectedFiles) {
+      formData.append('files', f.file)
+      if (f.type === 'image') {
+        formData.append('imageData', f.cloudUrl || f.preview || '')
+        formData.append('imageName', f.file.name)
       }
-      formData.append('imageName', selectedFile.file.name)
     }
-    
-    // Clear selected file
-    if (selectedFile) {
-      URL.revokeObjectURL(selectedFile.preview)
-      setSelectedFile(null)
-    }
-    
-    // Call the original onSubmit with FormData
+    setSelectedFiles([])
     onSubmit(formData)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      const formData = new FormData()
-      formData.append('message', input)
-      if (selectedFile) {
-        formData.append('image', selectedFile.file)
-        if (selectedFile.cloudUrl) {
-          formData.append('imageData', selectedFile.cloudUrl)
-        } else {
-          formData.append('imageData', selectedFile.preview)
-        }
-        formData.append('imageName', selectedFile.file.name)
-      }
-      if (selectedFile) {
-        URL.revokeObjectURL(selectedFile.preview)
-        setSelectedFile(null)
-      }
-      onSubmit(formData)
+      handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>)
     }
   }
 
-  const isUploading = selectedFile?.uploading;
+  const isUploading = selectedFiles.some(f => f.uploading)
 
   return (
-    <div className="bg-[#212121] p-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Selected Image Preview */}
-        {selectedFile && (
-          <div className="mb-4 relative">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-white">Selected Image</h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-gray-400 hover:text-white"
-                onClick={handleRemoveFile}
-                disabled={isUploading}
-              >
+    <div className="w-full px-2 pb-2">
+      {/* Selected Files Preview */}
+      {selectedFiles.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {selectedFiles.map((f, i) => (
+            <div key={i} className="relative flex items-center bg-[#232323] rounded-lg px-3 py-2 gap-2 min-w-[120px] max-w-[220px]">
+              {getFileIcon(f.type)}
+              {f.type === 'image' && (
+                <img src={f.cloudUrl || f.preview} alt={f.file.name} className="w-10 h-10 object-cover rounded" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-xs text-white">{f.file.name}</p>
+              </div>
+              {f.uploading && <Loader />}
+              <Button type="button" size="icon" variant="ghost" className="text-gray-400 hover:text-red-400 ml-1" onClick={() => handleRemoveFile(f.file)} disabled={f.uploading}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <div className="bg-gray-800 rounded-lg p-3 relative">
-              <img
-                src={selectedFile.cloudUrl || selectedFile.preview}
-                alt="Selected"
-                className="max-w-full h-auto rounded-lg max-h-32 object-contain"
-              />
-              {isUploading && <Loader />}
-              <p className="text-sm text-gray-400 mt-2">{selectedFile.file.name}</p>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="relative">
-          <div className="relative flex items-end gap-2 bg-[#303030] rounded-3xl ">
-            <div className="flex items-center pl-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelect}
-                disabled={isLoading}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-gray-400 hover:text-white hover:bg-gray-700 p-2"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-              >
-                <Paperclip className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <Textarea
-              value={input}
-              onChange={onInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Message ChatGPT or select an image for analysis"
-              className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-32 py-3"
-              rows={1}
-            />
-
-            <div className="flex items-center gap-2 pr-2 pb-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-gray-400 hover:text-white hover:bg-gray-700 p-1"
-              >
-                <Mic className="w-5 h-5" />
-              </Button>
-
-              <Button
-                type="submit"
-                size="sm"
-                disabled={isLoading || isUploading || (!input.trim() && !selectedFile) || isUploading}
-                className="bg-white text-black hover:bg-gray-200 disabled:bg-gray-600 disabled:text-gray-400 p-2 rounded-full"
-              >
-                <ArrowUp className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </form>
-
-        <div className="text-center mt-2">
-          <p className="text-xs text-gray-400">
-            ChatGPT can make mistakes. Check important info.{" "}
-            <button className="underline hover:text-gray-300">See Cookie Preferences</button>
-          </p>
+          ))}
         </div>
+      )}
+      <form onSubmit={handleSubmit} className="relative">
+        <div className="flex items-center bg-[#232323] rounded-2xl px-6 py-4 w-full border border-[#333] focus-within:border-[#444]">
+          {/* Attachments/Tools */}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="text-gray-400  mr-2"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isUploading}
+          >
+            <Paperclip className="w-5 h-5" />
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf,text/plain,audio/*"
+            className="hidden"
+            multiple
+            onChange={handleFileSelect}
+            disabled={isLoading || isUploading}
+          />
+          {/* Textarea */}
+          <Textarea
+            value={input}
+            onChange={onInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask anything"
+            className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-32 py-1 px-0"
+            rows={1}
+            style={{ boxShadow: 'none' }}
+          />
+          {/* Mic */}
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="text-gray-400  ml-2"
+            onClick={() => audioInputRef.current?.click()}
+            disabled={isLoading || isUploading}
+          >
+            <Mic className="w-5 h-5" />
+          </Button>
+          <input
+            ref={audioInputRef}
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={handleFileSelect}
+            disabled={isLoading || isUploading}
+          />
+          {/* Send */}
+          <Button
+            type="submit"
+            size="icon"
+            className="ml-2 bg-[#393939] text-white hover:bg-[#444] disabled:bg-[#222] disabled:text-gray-500 rounded-full"
+            disabled={isLoading || isUploading || (!input.trim() && selectedFiles.length === 0)}
+          >
+            <ArrowUp className="w-5 h-5" />
+          </Button>
+        </div>
+      </form>
+      <div className="text-center mt-2">
+        <p className="text-xs text-gray-400">
+          ChatGPT can make mistakes. Check important info. <button className="underline hover:text-gray-300">See Cookie Preferences</button>
+        </p>
       </div>
     </div>
   )
