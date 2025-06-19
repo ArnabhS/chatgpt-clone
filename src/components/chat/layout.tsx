@@ -370,7 +370,9 @@ export default function ChatLayout() {
                     role: 'assistant' as const,
                     content: assistantMessage || 'Sorry, no response was received from the AI.',
                   };
-                  setMessages(prev => [...prev, assistantMsg]);
+                  // Update both states: useChat and local, then clear local so useChat takes over
+                  setChatMessages([...updated, assistantMsg]);
+                  setMessages([]); // Clear local messages so useChat takes over
                   setIsImageLoading(false);
                   return;
                 }
@@ -391,26 +393,30 @@ export default function ChatLayout() {
           if (!assistantMessage) {
             const errorMsg = 'Sorry, no response was received from the AI.';
             setErrorMessage(errorMsg);
-            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+            setMessages([]); // Clear local messages
+            setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
           }
           setIsImageLoading(false);
         } else {
           setIsImageLoading(false);
           const errorMsg = 'Sorry, there was a problem reading the response stream.';
           setErrorMessage(errorMsg);
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+          setMessages([]); // Clear local messages
+          setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
         }
       } else {
         setIsImageLoading(false);
         const errorMsg = 'Sorry, the server returned an error. Please try again.';
         setErrorMessage(errorMsg);
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+        setMessages([]); // Clear local messages
+        setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
       }
     } catch (error) {
       setIsImageLoading(false);
       const errorMsg = 'Sorry, something went wrong while processing your edit. Please try again.';
       setErrorMessage(errorMsg);
-      setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+      setMessages([]); // Clear local messages
+      setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
       console.error('Error submitting edit:', error);
     }
   };
