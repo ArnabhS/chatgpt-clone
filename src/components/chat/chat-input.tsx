@@ -14,6 +14,8 @@ interface SelectedFile {
   cloudUrl?: string // for images
   uploading?: boolean
   type: 'image' | 'pdf' | 'txt' | 'audio' | 'other'
+  pdfData?: string // for pdf
+  txtData?: string // for txt
 }
 
 export default function ChatInput({
@@ -56,6 +58,7 @@ export default function ChatInput({
       const type = getFileType(file)
       let preview: string | undefined = undefined
       let uploading = false
+      let txtData: string | undefined = undefined
       if (type === 'image') {
         preview = URL.createObjectURL(file)
         uploading = true
@@ -77,6 +80,33 @@ export default function ChatInput({
         } catch {
           setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, uploading: false } : f))
         }
+      } else if (type === 'pdf') {
+        // Upload PDF to server (Cloudinary)
+        const formData = new FormData()
+        formData.append('file', file)
+        setSelectedFiles(prev => [...prev, { file, type, uploading: true }])
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          })
+          const data = await res.json()
+          if (data.url) {
+            setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, pdfData: data.url, uploading: false } : f))
+          } else {
+            setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, uploading: false } : f))
+          }
+        } catch {
+          setSelectedFiles(prev => prev.map(f => f.file === file ? { ...f, uploading: false } : f))
+        }
+      } else if (type === 'txt') {
+        // Read TXT as text
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          txtData = ev.target?.result as string
+          setSelectedFiles(prev => [...prev, { file, type, txtData }])
+        }
+        reader.readAsText(file)
       } else {
         setSelectedFiles(prev => [...prev, { file, type }])
       }
@@ -101,6 +131,12 @@ export default function ChatInput({
       if (f.type === 'image') {
         formData.append('imageData', f.cloudUrl || f.preview || '')
         formData.append('imageName', f.file.name)
+      } else if (f.type === 'pdf') {
+        formData.append('pdfData', f.pdfData || '')
+        formData.append('pdfName', f.file.name)
+      } else if (f.type === 'txt') {
+        formData.append('txtData', f.txtData || '')
+        formData.append('txtName', f.file.name)
       }
     }
     setSelectedFiles([])

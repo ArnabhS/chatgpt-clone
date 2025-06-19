@@ -14,6 +14,10 @@ interface Message {
   content: string
   imageData?: string
   imageName?: string
+  pdfData?: string
+  pdfName?: string
+  txtData?: string
+  txtName?: string
 }
 
 export default function ChatWindow({
@@ -115,6 +119,31 @@ export default function ChatWindow({
                                   />
                                   {msg.imageName && (
                                     <p className="text-xs text-gray-400 mt-1">{msg.imageName}</p>
+                                  )}
+                                </div>
+                              )}
+                              {/* PDF Display */}
+                              {msg.pdfData && (
+                                <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
+                                  <a href={msg.pdfData} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline">
+                                    {msg.pdfName || "View PDF"}
+                                  </a>
+                                </div>
+                              )}
+                              {/* TXT Display */}
+                              {msg.txtData && (
+                                <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
+                                  <pre className="bg-[#232323] text-white p-2 rounded max-h-40 overflow-auto whitespace-pre-wrap text-xs">
+                                    {msg.txtData.length > 1000 ? msg.txtData.slice(0, 1000) + '... (truncated)' : msg.txtData}
+                                  </pre>
+                                  {msg.txtName && (
+                                    <a
+                                      href={`data:text/plain;charset=utf-8,${encodeURIComponent(msg.txtData)}`}
+                                      download={msg.txtName}
+                                      className="text-blue-400 underline text-xs mt-1 block"
+                                    >
+                                      Download TXT
+                                    </a>
                                   )}
                                 </div>
                               )}

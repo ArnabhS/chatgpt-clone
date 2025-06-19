@@ -2,19 +2,20 @@
 
 
 import { useState, useEffect } from "react"
-import { useUser } from "@clerk/nextjs"
+import { SignOutButton, useUser } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
 import ChatWindow from "./chat-window"
 import ChatInput from "./chat-input"
 import { TokenUsage } from "./token-usage"
 import { Button } from "@/components/ui/button"
-import { Share, MoreHorizontal, ChevronDown, Menu, ChevronLeft, ChevronRight } from "lucide-react"
+import { Share, ChevronDown, Menu, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { v4 as uuidv4 } from 'uuid'
 import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
 import { validateModelSwitch } from '@/lib/model-utils'
 import { useChat } from '@ai-sdk/react'
 import type { UIMessage } from '@ai-sdk/ui-utils'
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 
 interface Message {
@@ -23,6 +24,10 @@ interface Message {
   content: string
   imageData?: string
   imageName?: string
+  pdfData?: string
+  pdfName?: string
+  txtData?: string
+  txtName?: string
 }
 
 
@@ -33,6 +38,8 @@ export default function ChatLayout() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
 
+  // Add local image loading state
+  const [isImageLoading, setIsImageLoading] = useState(false)
 
   // useChat for text-only streaming
   const {
@@ -56,6 +63,9 @@ export default function ChatLayout() {
   // Local state for image messages
   const [messages, setMessages] = useState<Message[]>([])
 
+  // Add error handling
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
 
   // Use messages from image logic if present, else useChat's messages (filtered to 'user'/'assistant')
   const displayMessages: Message[] = messages.length > 0
@@ -71,29 +81,27 @@ export default function ChatLayout() {
 
   // Custom submit handler for FormData
   const handleSubmit = async (formData: FormData | React.FormEvent<HTMLFormElement>) => {
-    // If called from a form event, delegate to useChat's handleSubmit
     if (typeof (formData as React.FormEvent<HTMLFormElement>).preventDefault === 'function') {
       handleTextSubmit(formData as React.FormEvent<HTMLFormElement>)
       return
     }
-    // Otherwise, it's a FormData (image upload)
     const fd = formData as FormData
-    const message = fd.get('message') as string
-    const imageData = fd.get('imageData') as string
-    const imageName = fd.get('imageName') as string
-    if (imageData) {
-      fd.append('userId', user?.id || "guest")
-      fd.append('chatId', currentChatId || '')
-      fd.append('modelName', selectedModel)
+    const file = fd.get('files') as File | null
+
+    if (file && file.type && file.type.startsWith('image/')) {
+      const message = fd.get('message') as string
+      const imageData = fd.get('imageData') as string
+      const imageName = fd.get('imageName') as string
       const userMessage: Message = {
         id: uuidv4(),
         role: 'user',
         content: message || '',
         imageData: imageData || undefined,
-        imageName: imageName || undefined
+        imageName: imageName || undefined,
       }
       setMessages(prev => [...prev, userMessage])
       setInput('')
+      setIsImageLoading(true)
       try {
         const response = await fetch('/api/chat', {
           method: 'POST',
@@ -103,6 +111,7 @@ export default function ChatLayout() {
           const reader = response.body?.getReader()
           if (reader) {
             let assistantMessage = ''
+            let gotFirstChunk = false
             while (true) {
               const { done, value } = await reader.read()
               if (done) break
@@ -115,29 +124,56 @@ export default function ChatLayout() {
                     const assistantMsg: Message = {
                       id: uuidv4(),
                       role: 'assistant',
-                      content: assistantMessage
+                      content: assistantMessage || 'Sorry, no response was received from the AI.'
                     }
                     setMessages(prev => [...prev, assistantMsg])
+                    setIsImageLoading(false)
                     return
                   }
                   try {
                     const parsed = JSON.parse(data)
                     if (parsed.text) {
                       assistantMessage += parsed.text
+                      if (!gotFirstChunk) {
+                        setIsImageLoading(false)
+                        gotFirstChunk = true
+                      }
                     }
                   } catch {}
                 }
               }
             }
+            // If assistantMessage is still empty after streaming, show error
+            if (!assistantMessage) {
+              const errorMsg = 'Sorry, no response was received from the AI.';
+              setErrorMessage(errorMsg);
+              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+            }
+            setIsImageLoading(false)
+          } else {
+            setIsImageLoading(false)
+            const errorMsg = 'Sorry, there was a problem reading the response stream.';
+            setErrorMessage(errorMsg);
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
           }
+        } else {
+          setIsImageLoading(false)
+          const errorMsg = 'Sorry, the server returned an error. Please try again.';
+          setErrorMessage(errorMsg);
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
         }
       } catch (error) {
+        setIsImageLoading(false)
+        const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
+        setErrorMessage(errorMsg);
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
         console.error('Error submitting message:', error)
       }
-    } else {
-      // fallback: should not happen, but just in case
-      handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
+      return
     }
+
+    // For PDF/DOC/TXT or no file, use useChat's handleSubmit
+    handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
   }
 
 
@@ -220,23 +256,28 @@ export default function ChatLayout() {
   return (
     <div className="flex h-screen bg-[#212121]">
       {/* Desktop Sidebar */}
-      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-0' : 'w-[260px]'}`}>
-        <AppSidebar
+      <div className={`hidden md:block transition-all duration-300 ${isCollapsed ? 'w-10' : 'w-[260px]'} relative`}>
+        <AppSidebar 
           onNewChat={startNewChat}
           onLoadChat={loadChat}
           currentChatId={currentChatId}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
         />
+        {/* Collapse/Expand Button - always absolutely positioned */}
+        <button
+          type="button"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`absolute top-2 ${isCollapsed ? 'left-1' : 'right-2'} z-30 w-8 h-8 bg-[#232323] border border-[#353535] rounded-xl shadow hover:bg-[#2a2a2a] flex items-center justify-center`}
+        >
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="4" width="16" height="14" rx="3" stroke="#fff" strokeWidth="1.5" fill="none" />
+            <rect x="6.5" y="7" width="2" height="8" rx="1" fill="#fff" />
+            <rect x="11.5" y="7" width="2" height="8" rx="1" fill="#fff" opacity="0.5" />
+          </svg>
+        </button>
       </div>
-      {/* Collapse Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hidden md:flex absolute left-[260px] top-4 z-10 text-gray-400 hover:text-white hover:bg-gray-700 transition-all duration-300"
-        style={{ left: isCollapsed ? '0' : '260px' }}
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-      </Button>
       {/* Mobile Sidebar */}
       <div className="md:hidden">
         <AppSidebar
@@ -251,28 +292,28 @@ export default function ChatLayout() {
       {/* Main Content */}
       <div className="flex flex-col flex-1 relative bg-[#212121]">
         {/* Header */}
-        <header className="flex h-14 items-center justify-between border-b border-gray-700 bg-[#212121] px-4">
+        <header className="flex h-14 items-center justify-between border-b border-[#303030] bg-[#212121] px-4">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="text-gray-400 hover:text-white hover:bg-gray-700 md:hidden"
+              className="text-gray-400 hover:text-white hover:bg-[#303030] md:hidden"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-4 w-4" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="text-white hover:bg-gray-700 gap-1">
+                <Button variant="ghost" className="text-white hover:bg-[#303030] hover:text-white gap-1">
                   {MODEL_CONFIGS[selectedModel]?.name || 'ChatGPT'}
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-gray-800 border-gray-700">
+              <DropdownMenuContent className="bg-[#303030] border-[#303030]">
                 {Object.entries(MODEL_CONFIGS).map(([key, config]) => (
                   <DropdownMenuItem
                     key={key}
-                    className="text-white hover:bg-gray-700"
+                    className="text-white hover:bg-[#303030]"
                     onClick={() => handleModelSwitch(key)}
                   >
                     <div className="flex flex-col items-start">
@@ -287,13 +328,49 @@ export default function ChatLayout() {
             </DropdownMenu>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-gray-700">
-              <Share className="h-4 w-4 mr-1" />
-              Share
-            </Button>
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-gray-700">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-[#303030]">
+                  <Share className="h-4 w-4 mr-1" />
+                  Share
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Coming soon!</p>
+              </TooltipContent>
+            </Tooltip>
+            {/* User Menu with Logout */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white hover:bg-[#303030] p-1">
+                  {user?.imageUrl ? (
+                    <img 
+                      src={user.imageUrl} 
+                      alt={user.firstName || "User"} 
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="bg-[#303030] border-gray-700">
+                <DropdownMenuItem className="text-white hover:bg-[#303030]">
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">{user?.firstName || user?.emailAddresses[0]?.emailAddress}</span>
+                    <span className="text-xs text-gray-400">Account</span>
+                  </div>
+                </DropdownMenuItem>
+               
+                <DropdownMenuItem className="text-red-400 hover:bg-[#303030]">
+                  <SignOutButton>
+                    <button className="flex items-center w-full text-left">
+                      <span>Sign out</span>
+                    </button>
+                  </SignOutButton>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         {/* Chat Area */}
@@ -301,7 +378,7 @@ export default function ChatLayout() {
           <ChatWindow
             messages={displayMessages}
             onEditMessage={handleEditMessage}
-            isLoading={isLoading}
+            isLoading={isLoading || isImageLoading}
             input={input}
             onInputChange={handleInputChange}
             onSubmit={handleSubmit}
@@ -310,16 +387,20 @@ export default function ChatLayout() {
         {/* Token Usage Indicator */}
         <TokenUsage messages={displayMessages} selectedModel={selectedModel} />
         {displayMessages.length > 0 && (
-          <div className="w-full bg-[#212121] border-t border-gray-700 sticky bottom-0 z-20">
+          <div className="w-full bg-[#212121] border-t border-[#303030] sticky bottom-0 z-20">
             <div className="max-w-3xl mx-auto px-4">
               <ChatInput
                 input={input}
-                isLoading={isLoading}
+                isLoading={isLoading || isImageLoading}
                 onInputChange={handleInputChange}
                 onSubmit={handleSubmit}
               />
             </div>
           </div>
+        )}
+        {/* Render error message above chat window */}
+        {errorMessage && (
+          <div className="text-red-400 text-center py-2">{errorMessage}</div>
         )}
       </div>
     </div>

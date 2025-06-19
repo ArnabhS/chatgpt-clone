@@ -39,13 +39,24 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   await connectDB();
-  const { chatId, userId } = await req.json();
-
-  if (!chatId || !userId) {
-    return new Response(JSON.stringify({ error: "Missing chatId or userId" }), { status: 400 });
+  const { userId, query } = await req.json();
+  if (!userId || !query) {
+    return new Response(JSON.stringify({ error: 'Missing userId or query' }), { status: 400 });
   }
-
-  const messages = await ChatMessage.find({ chatId, userId }).sort({ createdAt: 1 });
-
-  return new Response(JSON.stringify({ messages }), { status: 200 });
+  // Replace with your actual chat fetching logic
+  // Example: fetch from MongoDB or wherever your chats are stored
+  // Here, assume you have a Chat model
+  const Chat: any = (global as any).Chat;
+  if (!Chat) {
+    return new Response(JSON.stringify({ error: 'Chat model not found' }), { status: 500 });
+  }
+  const regex = new RegExp(query, 'i');
+  const chats = await Chat.find({
+    userId,
+    $or: [
+      { title: { $regex: regex } },
+      { latestMessage: { $regex: regex } }
+    ]
+  }).sort({ updatedAt: -1 });
+  return new Response(JSON.stringify({ chats }), { status: 200 });
 }
