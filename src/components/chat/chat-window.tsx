@@ -108,6 +108,8 @@ export default function ChatWindow({
                                 <div className={`mb-3 ${isUser ? "text-left" : ""}`}>
                                   <Image
                                     src={msg.imageData}
+                                    height={100}
+                                    width={100}
                                     alt={msg.imageName || "Uploaded image"}
                                     className="max-w-full h-auto rounded-lg max-h-64 object-contain"
                                   />

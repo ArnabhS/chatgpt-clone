@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
           {
             resource_type: "image",
             folder: "chat-images",
-            allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
+            allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg','pdf'],
             transformation: [
               { width: 800, height: 600, crop: "limit" },
               { quality: "auto", fetch_format: "auto" }
