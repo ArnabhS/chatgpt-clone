@@ -1,6 +1,8 @@
 import PDFParser from 'pdf2json';
 import fs from 'fs';
 
+
+
 export async function extractTextFromPDF(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
@@ -10,7 +12,7 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
         throw new Error(`PDF file not found at path: ${filePath}`);
       }
 
-      const pdfParser = new PDFParser();
+      const pdfParser = new PDFParser(null, true);
 
      
       pdfParser.on('pdfParser_dataError', (errData: { parserError: Error }) => {
@@ -23,6 +25,7 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
       pdfParser.on('pdfParser_dataReady', () => {
         console.log('PDF parsed successfully');
         const parsedText = pdfParser.getRawTextContent();
+        console.log('getRawTextContent output:', parsedText);
         resolve(parsedText);
       });
 

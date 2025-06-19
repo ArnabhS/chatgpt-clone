@@ -194,8 +194,9 @@ export async function POST(req: Request) {
           
           const { extractTextFromPDF } = await import('@/lib/pdf-extractor');
           const extractedText = await extractTextFromPDF(tempFilePath);
+          console.log("Extracted text raw:", extractedText);
           userMessage.content += `\n\n[PDF Content]:\n${extractedText}`;
-
+          console.log(userMessage)
           // Stream OpenAI text response in custom format
           const safeMessages = trimMessagesToTokenLimit([...contextMessages, userMessage], modelName).map(m => ({
             role: m.role as 'user' | 'assistant' | 'system',

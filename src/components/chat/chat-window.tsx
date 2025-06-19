@@ -81,7 +81,7 @@ export default function ChatWindow({
               const isEditing = editingIndex === idx
 
               return (
-                <div key={msg.id} className="group">
+                <div key={msg.id || idx} className="group">
                   <div className={`flex gap-4 ${isUser ? "justify-end" : "justify-start"}`}>
                     <div className={`flex-1 max-w-2xl ${isUser ? "order-first" : ""}`}>
                       <div className={`relative ${isUser ? "text-right" : ""}`}>
