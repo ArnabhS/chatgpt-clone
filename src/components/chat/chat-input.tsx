@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, Mic, ArrowUp, X, FileText, Image as ImageIcon, FileAudio } from "lucide-react"
 import { Loader } from "../ui/Loader"
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
 
 
 interface SelectedFile {
@@ -207,7 +208,9 @@ export default function ChatInput({
             style={{ boxShadow: 'none' }}
           />
           {/* Mic */}
-          <Button
+          <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
             type="button"
             size="icon"
             variant="ghost"
@@ -217,14 +220,13 @@ export default function ChatInput({
           >
             <Mic className="w-5 h-5" />
           </Button>
-          <input
-            ref={audioInputRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            onChange={handleFileSelect}
-            disabled={isLoading || isUploading}
-          />
+          
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Coming Soon !
+                </TooltipContent>
+              </Tooltip>
+          
           {/* Send */}
           <Button
             type="submit"
