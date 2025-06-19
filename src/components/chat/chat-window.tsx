@@ -7,8 +7,8 @@ import { Copy, Edit } from "lucide-react"
 import ChatInput from "./chat-input"
 import ReactMarkdown from "react-markdown"
 import Image from "next/image"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
+import Prism from "prismjs"
+import "prismjs/themes/prism-tomorrow.css"
 
 interface Message {
   id: string
@@ -55,47 +55,7 @@ export default function ChatWindow({
     navigator.clipboard.writeText(text)
   }
 
-  const handleEditMessage = (formData: FormData) => {
-    const newMessage = formData.get('message') as string;
-    const editIndex = Number(formData.get('editIndex'));
-
-    // 1. Copy all messages up to the edited one (excluding any after)
-    let updated: Message[];
-    if (messages.length > 0) {
-      updated = messages.slice(0, editIndex);
-      // 2. Add the edited message as the last user message
-      updated.push({
-        ...messages[editIndex],
-        content: newMessage,
-      });
-      setEditingIndex(null);
-    } else {
-      updated = messages
-        .filter((msg: Message) => msg.role === 'user' || msg.role === 'assistant')
-        .map((msg: Message) => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-          imageData: (msg as { imageData?: string }).imageData,
-          imageName: (msg as { imageName?: string }).imageName,
-          pdfData: (msg as { pdfData?: string }).pdfData,
-          pdfName: (msg as { pdfName?: string }).pdfName,
-          txtData: (msg as { txtData?: string }).txtData,
-          txtName: (msg as { txtName?: string }).txtName,
-        }))
-        .slice(0, editIndex);
-      updated.push({
-        ...messages[editIndex],
-        content: newMessage,
-      });
-      setEditingIndex(null);
-    }
-
-    // 3. Call handleSubmit with the edited message
-    const sendForm = new FormData();
-    sendForm.append('message', newMessage);
-    onSubmit(sendForm);
-  };
+  
 
   return (
     <ScrollArea className="h-full">
@@ -126,40 +86,41 @@ export default function ChatWindow({
                     <div className={`flex-1 max-w-2xl ${isUser ? "order-first" : ""}`}>
                       <div className={`relative ${isUser ? "text-right" : ""}`}>
                         {isEditing ? (
-                          <div className="flex items-start gap-2">
-                            <textarea
-                              className="w-full bg-[#303030] text-white p-3 rounded-lg border border-gray-600 focus:border-gray-500 resize-none"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              rows={3}
-                            />
-                            <div className="flex gap-1 mt-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-green-400 hover:text-green-300 hover:bg-gray-700"
-                                onClick={() => {
-                                  if (onEditSubmit) {
-                                    const formData = new FormData();
-                                    formData.append('message', editValue);
-                                    formData.append('editIndex', idx.toString());
-                                    onEditSubmit(formData);
-                                  }
-                                  setEditingIndex(null);
-                                }}
-                              >
-                                Send
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-400 hover:text-red-300 hover:bg-gray-700"
-                                onClick={() => setEditingIndex(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
+                          <div className="relative w-full">
+                          <textarea
+                            className="w-full bg-[#303030] text-white p-3 pr-28 rounded-2xl border border-gray-600 focus:border-gray-500 resize-none"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            rows={3}
+                          />
+                          <div className="absolute bottom-2 right-2 flex gap-2 mb-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="rounded-2xl p-3 bg-white text-black"
+                              onClick={() => {
+                                if (onEditSubmit) {
+                                  const formData = new FormData();
+                                  formData.append('message', editValue);
+                                  formData.append('editIndex', idx.toString());
+                                  onEditSubmit(formData);
+                                }
+                                setEditingIndex(null);
+                              }}
+                            >
+                              Send
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="bg-black text-white rounded-2xl p-3"
+                              onClick={() => setEditingIndex(null)}
+                            >
+                              Cancel
+                            </Button>
                           </div>
+                        </div>
+                        
                         ) : (
                           <>
                             <div
@@ -225,16 +186,17 @@ export default function ChatWindow({
                                     components={{
                                       code({ inline, className, children, ...props }: React.HTMLAttributes<HTMLElement> & { inline?: boolean; children?: React.ReactNode }) {
                                         const match = /language-(\w+)/.exec(className || "")
-                                        return !inline && match ? (
-                                          <SyntaxHighlighter
-                                            style={oneDark}
-                                            language={match[1]}
-                                            PreTag="div"
-                                            {...props}
-                                          >
-                                            {String(children).replace(/\n$/, "")}
-                                          </SyntaxHighlighter>
-                                        ) : (
+                                        if (!inline && match) {
+                                          const lang = match[1]
+                                          const code = String(children).replace(/\n$/, "")
+                                          const html = Prism.highlight(code, Prism.languages[lang] || Prism.languages.javascript, lang)
+                                          return (
+                                            <pre className={className} {...props}>
+                                              <code dangerouslySetInnerHTML={{ __html: html }} />
+                                            </pre>
+                                          )
+                                        }
+                                        return (
                                           <code className={className} {...props}>
                                             {children}
                                           </code>
