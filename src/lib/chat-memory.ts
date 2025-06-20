@@ -2,6 +2,8 @@ import { Memory } from 'mem0ai/oss';
 import { ChatMessage } from '@/models/chat';
 
 
+
+
 const memory = new Memory({
     version: 'v1.1',
     embedder: {
@@ -12,10 +14,13 @@ const memory = new Memory({
       },
     },
     vectorStore: {
-      provider: 'memory',
+      provider: 'supabase',
       config: {
-        collectionName: 'memories',
-        dimension: 1536,
+      collectionName: "memories",
+      embeddingModelDims: 1536,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+      tableName: "memories",
       },
     },
     llm: {
