@@ -1,7 +1,8 @@
 import { Memory } from 'mem0ai/oss';
 import { ChatMessage } from '@/models/chat';
 
-const memory = new Memory({
+
+const config = {
   version: 'v1.1',
   embedder: {
     provider: 'openai',
@@ -11,14 +12,10 @@ const memory = new Memory({
     },
   },
   vectorStore: {
-    provider: 'supabase',
+    provider: 'memory',
     config: {
-      collectionName: "memories",
-      embeddingModelDims: 1536,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-      tableName: "memories",
-      historyTableName: "memory_history",
+      collectionName: 'memories',
+      dimension: 1536,
     },
   },
   llm: {
@@ -28,8 +25,18 @@ const memory = new Memory({
       model: 'gpt-4-turbo-preview',
     },
   },
-  historyDbPath: process.env.NODE_ENV === 'production' ? '/tmp/memory.db' : 'memory.db',
-});
+  historyStore: {
+    provider: 'supabase',
+    config: {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      tableName: 'memories',
+    },
+  },
+  disableHistory: false, 
+}
+
+const memory = new Memory(config);
 
 export async function storeMessages(
   userId: string,
