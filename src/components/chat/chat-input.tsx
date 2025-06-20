@@ -4,9 +4,10 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Paperclip, Mic, ArrowUp, X, FileText, Image as ImageIcon, FileAudio } from "lucide-react"
+import { Plus, AudioLines, Mic, X, FileText, Image as ImageIcon, FileAudio } from "lucide-react"
 import { Loader } from "../ui/Loader"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
+
 
 
 interface SelectedFile {
@@ -175,69 +176,81 @@ export default function ChatInput({
           ))}
         </div>
       )}
-      <form onSubmit={handleSubmit} className="relative">
-        <div className="flex items-center bg-[#232323] rounded-2xl px-6 py-4 w-full border border-[#333] focus-within:border-[#444]">
-          {/* Attachments/Tools */}
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="text-gray-400  mr-2"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || isUploading}
-          >
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,application/pdf,text/plain,audio/*"
-            className="hidden"
-            multiple
-            onChange={handleFileSelect}
-            disabled={isLoading || isUploading}
-          />
-          {/* Textarea */}
-          <Textarea
-            value={input}
-            onChange={onInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything"
-            className="flex-1 bg-[] border-0 text-white placeholder-gray-400 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-full max-h-32 py-2 px-0 rounded-2xl"
-            rows={1}
-            style={{ boxShadow: 'none' }}
-          />
-          {/* Mic */}
-          <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="text-gray-400  ml-2"
-            onClick={() => audioInputRef.current?.click()}
-            disabled={isLoading || isUploading}
-          >
-            <Mic className="w-5 h-5" />
-          </Button>
-          
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  Coming Soon !
-                </TooltipContent>
-              </Tooltip>
-          
-          {/* Send */}
-          <Button
-            type="submit"
-            size="icon"
-            className="ml-2 bg-[#393939] text-white hover:bg-[#444] disabled:bg-[#222] disabled:text-gray-500 rounded-full"
-            disabled={isLoading || isUploading || (!input.trim() && selectedFiles.length === 0)}
-          >
-            <ArrowUp className="w-5 h-5" />
-          </Button>
-        </div>
-      </form>
+<form onSubmit={handleSubmit} className="relative">
+  <div className="bg-[#303030] rounded-3xl px-4 py-2 w-full border border-[#404040]">
+    {/* Top row - Text input */}
+    <div className="">
+      <Textarea
+        value={input}
+        onChange={onInputChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Ask anything"
+        className="w-full bg-transparent border-0 text-white placeholder-gray-500 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-auto max-h-16 py-4 px-0 text-base "
+        rows={1}
+        style={{ boxShadow: 'none' }}
+      />
+    </div>
+    
+    {/* Bottom row - Controls */}
+    <div className="flex items-center justify-between">
+      {/* Left side - Plus and Tools */}
+      <div className="flex items-center">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="text-gray-400  p-1 h-4 w-4"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading || isUploading}
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+        
+      </div>
+      
+      {/* Right side - Mic and Audio icons */}
+      <div className="flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="text-gray-400 p-1 h-4 w-4"
+              onClick={() => audioInputRef.current?.click()}
+              disabled={isLoading || isUploading}
+            >
+              <Mic className="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            Coming Soon !
+          </TooltipContent>
+        </Tooltip>
+        
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="text-gray-400  p-1 h-4 w-4 rounded-full bg-[#404040]"
+          disabled={isLoading || isUploading}
+        >
+          <AudioLines className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+    
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*,application/pdf,text/plain,audio/*"
+      className="hidden"
+      multiple
+      onChange={handleFileSelect}
+      disabled={isLoading || isUploading}
+    />
+  </div>
+</form>
       <div className="text-center mt-2">
         <p className="text-xs text-gray-400">
           ChatGPT can make mistakes. Check important info. <button className="underline hover:text-gray-300">See Cookie Preferences</button>
