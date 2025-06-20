@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, AudioLines, Mic, X, FileText, Image as ImageIcon, FileAudio } from "lucide-react"
+import { Plus,  Mic, X, FileText, Image as ImageIcon, FileAudio, ArrowUp } from "lucide-react"
 import { Loader } from "../ui/Loader"
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip"
 
@@ -199,7 +199,7 @@ export default function ChatInput({
           type="button"
           size="icon"
           variant="ghost"
-          className="text-gray-400  p-1 h-4 w-4"
+          className="text-gray-400  p-3 h-4 w-4"
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading || isUploading}
         >
@@ -216,7 +216,7 @@ export default function ChatInput({
               type="button"
               size="icon"
               variant="ghost"
-              className="text-gray-400 p-1 h-4 w-4"
+              className="text-gray-400 p-3 h-4 w-4"
               onClick={() => audioInputRef.current?.click()}
               disabled={isLoading || isUploading}
             >
@@ -232,10 +232,10 @@ export default function ChatInput({
           type="button"
           size="icon"
           variant="ghost"
-          className="text-gray-400  p-1 h-4 w-4 rounded-full bg-[#404040]"
+          className="text-gray-400  p-3 h-4 w-4 rounded-full bg-[#404040]"
           disabled={isLoading || isUploading}
         >
-          <AudioLines className="w-4 h-4" />
+          <ArrowUp className="w-4 h-4" />
         </Button>
       </div>
     </div>

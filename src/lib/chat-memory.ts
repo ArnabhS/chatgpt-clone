@@ -25,7 +25,7 @@ const memory = new Memory({
         model: 'gpt-4-turbo-preview',
       },
     },
-    historyDbPath: 'memory.db',
+    historyDbPath: '/tmp/memory.db',
   });
 
 
