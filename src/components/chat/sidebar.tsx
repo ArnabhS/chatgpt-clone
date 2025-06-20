@@ -12,6 +12,7 @@ import {
 import { useUser } from "@clerk/nextjs"
 import Image from "next/image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ChatItem {
   _id: string;
@@ -30,6 +31,7 @@ interface AppSidebarProps {
   currentChatId?: string | null;
   isCollapsed?: boolean;
   setIsCollapsed?: (collapsed: boolean) => void;
+  refreshSidebar?: (fetchChats: () => Promise<void>) => void;
 }
 
 export function AppSidebar({ 
@@ -40,28 +42,37 @@ export function AppSidebar({
   onLoadChat,
   currentChatId,
   isCollapsed = false,
-  setIsCollapsed
+  setIsCollapsed,
+  refreshSidebar
 }: AppSidebarProps) {
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const userId = user?.id; 
 
-  useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        const res = await fetch(`/api/chat/history?userId=${userId}`);
-        const data = await res.json();
-        setChatHistory(data.chats || []);
-      } catch (error) {
-        console.error("Error fetching chat history:", error);
-      }
-    };
+  const fetchChats = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/chat/history?userId=${userId}`);
+      const data = await res.json();
+      setChatHistory(data.chats || []);
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (userId) {
       fetchChats();
     }
   }, [userId]);
+
+  if (refreshSidebar) {
+    refreshSidebar(fetchChats);
+  }
 
   const filteredChats = chatHistory.filter((chat) =>
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -167,19 +178,24 @@ export function AppSidebar({
               <h3 className="text-gray-400 text-xs font-medium mb-2 px-2">Chats</h3>
               <ScrollArea className="h-[300px]">
                 <div className="space-y-1">
-                  {filteredChats.map((chat) => (
-                    <Button
-                      key={chat._id}
-                      variant="ghost"
-                      className={`w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white text-sm py-2 px-3 h-auto ${
-                        currentChatId === chat._id ? 'bg-[#303030] text-white' : ''
-                      }`}
-                      onClick={() => onLoadChat?.(chat._id)}
-                    >
-                     
-                      <span className="truncate text-left">{chat.title}</span>
-                    </Button>
-                  ))}
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-8 w-full bg-[#232323]" />
+                    ))
+                  ) : (
+                    filteredChats.map((chat) => (
+                      <Button
+                        key={chat._id}
+                        variant="ghost"
+                        className={`w-full justify-start text-gray-300 hover:bg-[#303030] hover:text-white text-sm py-2 px-3 h-auto ${
+                          currentChatId === chat._id ? 'bg-[#303030] text-white' : ''
+                        }`}
+                        onClick={() => onLoadChat?.(chat._id)}
+                      >
+                        <span className="truncate text-left">{chat.title}</span>
+                      </Button>
+                    ))
+                  )}
                 </div>
               </ScrollArea>
             </div>

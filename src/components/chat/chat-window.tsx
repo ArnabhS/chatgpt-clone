@@ -46,10 +46,14 @@ export default function ChatWindow({
   const [editValue, setEditValue] = useState("")
 
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const prevMsgCount = useRef<number>(messages.length)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, isLoading])
+    if (messages.length > prevMsgCount.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+    prevMsgCount.current = messages.length
+  }, [messages])
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)

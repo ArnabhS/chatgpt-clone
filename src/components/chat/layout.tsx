@@ -1,7 +1,7 @@
 "use client"
 
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { SignOutButton, useUser } from "@clerk/nextjs"
 import { AppSidebar } from "./sidebar"
 import ChatWindow from "./chat-window"
@@ -13,8 +13,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { v4 as uuidv4 } from 'uuid'
 import { MODEL_CONFIGS, DEFAULT_MODEL } from '@/lib/trimMessages'
 import { validateModelSwitch } from '@/lib/model-utils'
-import { useChat } from '@ai-sdk/react'
-import type { UIMessage } from '@ai-sdk/ui-utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 
@@ -33,236 +31,140 @@ interface Message {
 
 export default function ChatLayout() {
   const { user } = useUser()
+  console.log(user?.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL)
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const [isImageLoading, setIsImageLoading] = useState(false)
+  const sidebarRefreshRef = useRef<null | (() => Promise<void>)>(null);
 
- 
-  const {
-    messages: chatMessages,
-    input,
-    setInput,
-    isLoading,
-    handleInputChange,
-    handleSubmit: handleTextSubmit,
-    setMessages: setChatMessages,
-  } = useChat({
-    api: "/api/chat",
-    body: {
-      userId: user?.id || "guest",
-      chatId: currentChatId,
-      modelName: selectedModel,
-    },
-  })
-
-
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+  };
 
+  const displayMessages: Message[] = messages;
 
- 
-  const displayMessages: Message[] = messages.length > 0
-    ? messages
-    : (chatMessages
-        .filter((msg: UIMessage) => msg.role === 'user' || msg.role === 'assistant')
-        .map((msg: UIMessage) => ({
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })) as Message[])
-
-
- 
   const handleSubmit = async (formData: FormData | React.FormEvent<HTMLFormElement>) => {
+    let fd: FormData;
     if (typeof (formData as React.FormEvent<HTMLFormElement>).preventDefault === 'function') {
-      handleTextSubmit(formData as React.FormEvent<HTMLFormElement>)
-      return
+      (formData as React.FormEvent<HTMLFormElement>).preventDefault();
+      fd = new FormData();
+      fd.append('message', input);
+      fd.append('userId', user?.id || 'guest');
+    } else {
+      fd = formData as FormData;
+      if (!fd.has('userId')) {
+        fd.append('userId', user?.id || 'guest');
+      }
     }
-    const fd = formData as FormData
-    const file = fd.get('files') as File | null
-
+    const file = fd.get('files') as File | null;
+    let userMessage: Message;
     if (file && file.type && file.type.startsWith('image/')) {
-      const message = fd.get('message') as string
-      const imageData = fd.get('imageData') as string
-      const imageName = fd.get('imageName') as string
-      const userMessage: Message = {
+      const message = fd.get('message') as string;
+      const imageData = fd.get('imageData') as string;
+      const imageName = fd.get('imageName') as string;
+      userMessage = {
         id: uuidv4(),
         role: 'user',
-        content: message || '',
+
+        content: `[Image Uploaded: ${imageName}] ${message || ''}`.trim(),
         imageData: imageData || undefined,
         imageName: imageName || undefined,
-      }
-      setMessages(prev => [...prev, userMessage])
-      setInput('')
-      setIsImageLoading(true)
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          body: fd,
-        })
-        if (response.ok) {
-          const reader = response.body?.getReader()
-          if (reader) {
-            let assistantMessage = ''
-            let gotFirstChunk = false
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              const chunk = new TextDecoder().decode(value)
-              const lines = chunk.split('\n')
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(6)
-                  if (data === '[DONE]') {
-                    const assistantMsg: Message = {
-                      id: uuidv4(),
-                      role: 'assistant' as const,
-                      content: assistantMessage || 'Sorry, no response was received from the AI.'
-                    }
-                    setMessages(prev => [...prev, assistantMsg])
-                    setIsImageLoading(false)
-                    return
-                  }
-                  try {
-                    const parsed = JSON.parse(data)
-                    if (parsed.text) {
-                      assistantMessage += parsed.text
-                      if (!gotFirstChunk) {
-                        setIsImageLoading(false)
-                        gotFirstChunk = true
-                      }
-                    }
-                  } catch {}
-                }
-              }
-            }
-            // If assistantMessage is still empty after streaming, show error
-            if (!assistantMessage) {
-              const errorMsg = 'Sorry, no response was received from the AI.';
-              setErrorMessage(errorMsg);
-              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-            }
-            setIsImageLoading(false)
-          } else {
-            setIsImageLoading(false)
-            const errorMsg = 'Sorry, there was a problem reading the response stream.';
-            setErrorMessage(errorMsg);
-            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-          }
-        } else {
-          setIsImageLoading(false)
-          const errorMsg = 'Sorry, the server returned an error. Please try again.';
-          setErrorMessage(errorMsg);
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-        }
-      } catch (error) {
-        setIsImageLoading(false)
-        const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
-        setErrorMessage(errorMsg);
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-        console.error('Error submitting message:', error)
-      }
-      return
-    }
-
-    
-    if (file && file.type === 'application/pdf') {
-      const message = fd.get('message') as string
-      const pdfName = file.name
-      const userMessage: Message = {
+      };
+    } else if (file && file.type === 'application/pdf') {
+      const message = fd.get('message') as string;
+      const pdfName = file.name;
+      userMessage = {
         id: uuidv4(),
         role: 'user',
         content: message || (pdfName ? `Uploaded PDF: ${pdfName}` : ''),
         pdfName: pdfName || undefined,
-      }
-      setMessages(prev => [...prev, userMessage])
-      setInput('')
-      setIsImageLoading(true)
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          body: fd,
-        })
-        if (response.ok) {
-          const reader = response.body?.getReader()
-          if (reader) {
-            let assistantMessage = ''
-            let gotFirstChunk = false
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              const chunk = new TextDecoder().decode(value)
-              const lines = chunk.split('\n')
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const data = line.slice(6)
-                  if (data === '[DONE]') {
-                    const assistantMsg: Message = {
-                      id: uuidv4(),
-                      role: 'assistant' as const,
-                      content: assistantMessage || 'Sorry, no response was received from the AI.'
-                    }
-                    setMessages(prev => [...prev, assistantMsg])
-                    setIsImageLoading(false)
-                    return
-                  }
-                  try {
-                    const parsed = JSON.parse(data)
-                    if (parsed.text) {
-                      assistantMessage += parsed.text
-                      if (!gotFirstChunk) {
-                        setIsImageLoading(false)
-                        gotFirstChunk = true
-                      }
-                    }
-                  } catch {}
+      };
+    } else {
+      const message = fd.get('message') as string || input;
+      userMessage = {
+        id: uuidv4(),
+        role: 'user',
+        content: message,
+      };
+    }
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: fd,
+      });
+      if (response.ok) {
+        const reader = response.body?.getReader();
+        if (reader) {
+          let assistantMessage = '';
+          let gotFirstChunk = false;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = new TextDecoder().decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') {
+                  setMessages(prev => [...prev, {
+                    id: uuidv4(),
+                    role: 'assistant',
+                    content: assistantMessage || 'Sorry, no response was received from the AI.'
+                  }]);
+                  setIsLoading(false);
+                  return;
                 }
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.text) {
+                    assistantMessage += parsed.text;
+                    if (!gotFirstChunk) {
+                      gotFirstChunk = true;
+                    }
+                  }
+                } catch {}
               }
             }
-           
-            if (!assistantMessage) {
-              const errorMsg = 'Sorry, no response was received from the AI.';
-              setErrorMessage(errorMsg);
-              setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-            }
-            setIsImageLoading(false)
-          } else {
-            setIsImageLoading(false)
-            const errorMsg = 'Sorry, there was a problem reading the response stream.';
-            setErrorMessage(errorMsg);
-            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+          }
+          if (!assistantMessage) {
+            const errorMsg = 'Sorry, no response was received from the AI.';
+            setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
           }
         } else {
-          setIsImageLoading(false)
-          const errorMsg = 'Sorry, the server returned an error. Please try again.';
-          setErrorMessage(errorMsg);
-          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+          const errorMsg = 'Sorry, there was a problem reading the response stream.';
+          setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
         }
-      } catch (error) {
-        setIsImageLoading(false)
-        const errorMsg = 'Sorry, something went wrong while processing your file. Please try again.';
-        setErrorMessage(errorMsg);
-        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
-        console.error('Error submitting message:', error)
+      } else {
+        const errorMsg = 'Sorry, the server returned an error. Please try again.';
+        setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
       }
-      return
+    } catch (error) {
+      const errorMsg = 'Sorry, something went wrong while processing your message. Please try again.';
+      setMessages(prev => [...prev, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
+      console.error('Error submitting message:', error);
     }
-
-   
-    handleTextSubmit(fd as unknown as React.FormEvent<HTMLFormElement>)
-  }
+    setIsLoading(false);
+  };
 
 
   const startNewChat = () => {
     const newChatId = uuidv4()
     setCurrentChatId(newChatId)
     setMessages([])
-    setChatMessages([])
+    // Refresh sidebar if possible
+    if (sidebarRefreshRef.current) {
+      sidebarRefreshRef.current();
+    }
   }
 
 
@@ -276,14 +178,13 @@ export default function ChatLayout() {
         },
         body: JSON.stringify({
           chatId,
-          userId: user?.id || "guest",
+          userId: user?.id || 'guest',
         }),
       })
       if (response.ok) {
         const data = await response.json()
         setCurrentChatId(chatId)
         setMessages(data.messages || [])
-        setChatMessages(data.messages || [])
       }
     } catch (error) {
       console.error('Error loading chat:', error)
@@ -301,11 +202,11 @@ export default function ChatLayout() {
 
   
   const handleModelSwitch = (newModel: string) => {
-    if ((messages.length === 0) && (chatMessages.length === 0)) {
+    if ((messages.length === 0)) {
       setSelectedModel(newModel);
       return;
     }
-    const validation = validateModelSwitch(messages.length > 0 ? messages : chatMessages, newModel);
+    const validation = validateModelSwitch(messages, newModel);
     if (validation.canSwitch) {
       setSelectedModel(newModel);
     } else {
@@ -320,7 +221,7 @@ export default function ChatLayout() {
     const newMessage = formData.get('message') as string;
     const editIndex = Number(formData.get('editIndex'));
 
-   
+    // Prepare the updated messages array
     const baseMessages = displayMessages.filter((msg) => msg.role === 'user' || msg.role === 'assistant');
     const updated = baseMessages.slice(0, editIndex);
     updated.push({
@@ -328,23 +229,20 @@ export default function ChatLayout() {
       content: newMessage,
     });
 
-    setChatMessages(updated);
     setMessages(updated);
     setEditingIndex(null);
     setInput('');
-    setIsImageLoading(true);
+    setIsLoading(true);
 
-    
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: updated,
-          userId: user?.id || "guest",
+          userId: user?.id || 'guest',
           chatId: currentChatId,
           modelName: selectedModel,
-          editing: true
         }),
       });
       if (response.ok) {
@@ -361,15 +259,12 @@ export default function ChatLayout() {
               if (line.startsWith('data: ')) {
                 const data = line.slice(6);
                 if (data === '[DONE]') {
-                  const assistantMsg = {
+                  setMessages([...updated, {
                     id: uuidv4(),
-                    role: 'assistant' as const,
-                    content: assistantMessage || 'Sorry, no response was received from the AI.',
-                  };
-                  
-                  setChatMessages([...updated, assistantMsg]);
-                  setMessages([]); 
-                  setIsImageLoading(false);
+                    role: 'assistant',
+                    content: assistantMessage || 'Sorry, no response was received from the AI.'
+                  }]);
+                  setIsLoading(false);
                   return;
                 }
                 try {
@@ -377,7 +272,6 @@ export default function ChatLayout() {
                   if (parsed.text) {
                     assistantMessage += parsed.text;
                     if (!gotFirstChunk) {
-                      setIsImageLoading(false);
                       gotFirstChunk = true;
                     }
                   }
@@ -385,36 +279,24 @@ export default function ChatLayout() {
               }
             }
           }
-         
           if (!assistantMessage) {
             const errorMsg = 'Sorry, no response was received from the AI.';
-            setErrorMessage(errorMsg);
-            setMessages([]); 
-            setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+            setMessages([...updated, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
           }
-          setIsImageLoading(false);
         } else {
-          setIsImageLoading(false);
           const errorMsg = 'Sorry, there was a problem reading the response stream.';
-          setErrorMessage(errorMsg);
-          setMessages([]); 
-          setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+          setMessages([...updated, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
         }
       } else {
-        setIsImageLoading(false);
         const errorMsg = 'Sorry, the server returned an error. Please try again.';
-        setErrorMessage(errorMsg);
-        setMessages([]);
-        setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+        setMessages([...updated, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
       }
     } catch (error) {
-      setIsImageLoading(false);
       const errorMsg = 'Sorry, something went wrong while processing your edit. Please try again.';
-      setErrorMessage(errorMsg);
-      setMessages([]); // Clear local messages
-      setChatMessages([...updated, { id: uuidv4(), role: 'assistant' as const, content: errorMsg }]);
+      setMessages([...updated, { id: uuidv4(), role: 'assistant', content: errorMsg }]);
       console.error('Error submitting edit:', error);
     }
+    setIsLoading(false);
   };
 
   return (
@@ -427,6 +309,7 @@ export default function ChatLayout() {
           currentChatId={currentChatId}
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
+          refreshSidebar={(fn) => { sidebarRefreshRef.current = fn; }}
         />
       
         <button
@@ -451,6 +334,7 @@ export default function ChatLayout() {
           onNewChat={startNewChat}
           onLoadChat={loadChat}
           currentChatId={currentChatId}
+          refreshSidebar={(fn) => { sidebarRefreshRef.current = fn; }}
         />
       </div>
      
@@ -541,13 +425,13 @@ export default function ChatLayout() {
         <div className="flex-1 overflow-y-auto">
         <ChatWindow
   messages={displayMessages}
-  onEditSubmit={handleEditMessage}
-  isLoading={isLoading || isImageLoading}
+  editingIndex={editingIndex}
+  setEditingIndex={setEditingIndex}
+  isLoading={isLoading}
   input={input}
   onInputChange={handleInputChange}
   onSubmit={handleSubmit}
-  editingIndex={editingIndex}
-  setEditingIndex={setEditingIndex}
+  onEditSubmit={handleEditMessage}
 />
 
         </div>
@@ -558,16 +442,12 @@ export default function ChatLayout() {
             <div className="max-w-3xl mx-auto px-4">
               <ChatInput
                 input={input}
-                isLoading={isLoading || isImageLoading}
+                isLoading={isLoading}
                 onInputChange={handleInputChange}
                 onSubmit={handleSubmit}
               />
             </div>
           </div>
-        )}
-        
-        {errorMessage && (
-          <div className="text-red-400 text-center py-2">{errorMessage}</div>
         )}
       </div>
     </div>

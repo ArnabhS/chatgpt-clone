@@ -1,5 +1,3 @@
-import { openai } from '@ai-sdk/openai';
-import { streamText } from 'ai';
 import { connectDB } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -7,7 +5,7 @@ import {
   DEFAULT_MODEL
 } from '@/lib/trimMessages';
 import openaiClient from '@/lib/openai-client';
-import memory, { storeMessages } from '@/lib/chat-memory';
+import { storeMessages, getAllMemories } from '@/lib/chat-memory';
 import { saveTempFile, deleteTempFile } from '@/lib/file-utils';
 
 
@@ -18,7 +16,7 @@ export async function POST(req: Request) {
 
   let message: string | undefined;
   let file: File | undefined;
-  let userId: string = 'guest';
+  let userId: string;
   let existingChatId: string | undefined;
   let modelName: string = DEFAULT_MODEL;
   let formData: FormData | undefined;
@@ -39,60 +37,15 @@ export async function POST(req: Request) {
       const lastMsg = messagesArr[messagesArr.length - 1];
       lastUserMessage = lastMsg.content;
     }
+    console.log(jsonBody)
     message = lastUserMessage;
     userId = (jsonBody.userId as string) || 'guest';
     existingChatId = jsonBody.chatId as string;
     modelName = (jsonBody.modelName as string) || DEFAULT_MODEL;
-    // Handle edit streaming
-    if (jsonBody.editing === true) {
-      // Stream OpenAI text response in custom format for editing
-      const safeMessages = trimMessagesToTokenLimit(messagesArr, modelName).map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content
-      }));
-      const textResponse = await openaiClient.chat.completions.create({
-        model: modelName,
-        messages: safeMessages,
-        max_tokens: 1000,
-        stream: true,
-      });
-      const stream = new ReadableStream({
-        async start(controller) {
-          try {
-            for await (const chunk of textResponse) {
-              const content = chunk.choices[0]?.delta?.content;
-              if (content) {
-                fullText += content;
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: content })}\n\n`));
-              }
-            }
-            controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            controller.error(error);
-          }
-        }
-      });
-      const response = new Response(stream, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Transfer-Encoding': 'chunked',
-        },
-      });
-      (async () => {
-        try {
-          if (fullText) {
-            await storeMessages(userId, existingChatId || uuidv4(), message || '', fullText);
-          }
-        } catch (error) {
-          console.error('Error storing conversation:', error);
-        }
-      })();
-      return response;
-    }
   } else if (contentType.includes('multipart/form-data')) {
     console.log('file received')
     formData = await req.formData();
+    console.log(formData)
     message = (formData.get('message') as string) || '';
     file = formData.get('files') as File;
     userId = (formData.get('userId') as string) || 'guest';
@@ -108,12 +61,14 @@ export async function POST(req: Request) {
     role: 'user' as const,
     content: message || ''
   };
-  const searchQuery = userMessage.content;
-  const searchResults = await memory.search(searchQuery, { userId: userId });
-  const contextMessages = Array.isArray(searchResults)
-    ? searchResults.map((item: { role: string; content: string }) => ({
-        role: item.role as 'user' | 'assistant',
-        content: item.content
+  console.log("userId in route", userId)  
+  const searchResults = await getAllMemories(userId);
+
+  type MemoryResult = { memory: string };
+  const contextMessages = Array.isArray(searchResults?.results)
+    ? searchResults.results.map((mem: MemoryResult) => ({
+        role: 'system' as const,
+        content: `Memory: ${mem.memory}`
       }))
     : [];
 
@@ -130,7 +85,7 @@ export async function POST(req: Request) {
         .limit(5)
         .lean()
     );
-    lastMessages = (recent as RecentMsg[]).reverse().map((msg) => ({ role: msg.role, content: msg.content }));
+    lastMessages = (recent as unknown as RecentMsg[]).reverse().map((msg) => ({ role: msg.role, content: msg.content }));
   }
 
   // Compose the prompt for the LLM
@@ -140,12 +95,7 @@ export async function POST(req: Request) {
     userMessage
   ], modelName);
 
-  if (file && typeof file === 'string') {
-    console.error('File is a string, not a File object:', file);
-    return new Response(JSON.stringify({ error: 'Invalid file format' }), { status: 400 });
-  }
-
-  if (file) {
+  if (file && typeof file !== 'string') {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -184,37 +134,31 @@ export async function POST(req: Request) {
               }
               controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
               controller.close();
+              // Store memory after streaming is done
+              if (fullText) {
+                await storeMessages(
+                  userId,
+                  chatId,
+                  userMessage.content,
+                  fullText,
+                  {
+                    imageData: formData?.get('imageData') as string || undefined,
+                    imageName: formData?.get('imageName') as string || file.name || undefined,
+                  },
+                  undefined
+                );
+              }
             } catch (error) {
               controller.error(error);
             }
           }
         });
-        const response = new Response(stream, {
+        return new Response(stream, {
           headers: {
             'Content-Type': 'text/plain; charset=utf-8',
             'Transfer-Encoding': 'chunked',
           },
         });
-        (async () => {
-          try {
-            if (fullText) {
-              await storeMessages(
-                userId,
-                chatId,
-                userMessage.content,
-                fullText,
-                {
-                  imageData: formData?.get('imageData') as string || undefined,
-                  imageName: formData?.get('imageName') as string || file.name || undefined,
-                },
-                undefined
-              );
-            }
-          } catch (error) {
-            console.error('Error storing conversation:', error);
-          }
-        })();
-        return response;
       } else if (file.type === 'application/pdf') {
         // PDF handling (stream like images)
         try {
@@ -253,37 +197,31 @@ export async function POST(req: Request) {
                 }
                 controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
                 controller.close();
+                // Store memory after streaming is done
+                if (fullText) {
+                  await storeMessages(
+                    userId,
+                    chatId,
+                    userMessage.content,
+                    fullText,
+                    {
+                      imageData: formData?.get('imageData') as string || undefined,
+                      imageName: formData?.get('imageName') as string || file.name || undefined,
+                    },
+                    undefined
+                  );
+                }
               } catch (error) {
                 controller.error(error);
               }
             }
           });
-          const response = new Response(stream, {
+          return new Response(stream, {
             headers: {
               'Content-Type': 'text/plain; charset=utf-8',
               'Transfer-Encoding': 'chunked',
             },
           });
-          (async () => {
-            try {
-              if (fullText) {
-                await storeMessages(
-                  userId,
-                  chatId,
-                  userMessage.content,
-                  fullText,
-                  {
-                    imageData: formData?.get('imageData') as string || undefined,
-                    imageName: formData?.get('imageName') as string || file.name || undefined,
-                  },
-                  undefined
-                );
-              }
-            } catch (error) {
-              console.error('Error storing conversation:', error);
-            }
-          })();
-          return response;
         } catch (err) {
           console.error('PDF extraction error:', err);
           return new Response(JSON.stringify({ error: 'Failed to extract text from PDF.' }), { status: 500 });
@@ -300,38 +238,52 @@ export async function POST(req: Request) {
     }
   }
 
-  // For text, PDF, DOC, DOCX (after extraction), use text streaming
-  console.log('Processing message:', userMessage);
-  const result = streamText({
-    model: openai(modelName),
+  // Unified streaming for all message types
+  const openaiResponse = await openaiClient.chat.completions.create({
+    model: modelName,
     messages: promptMessages as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    max_tokens: 1000,
+    stream: true,
   });
-  
-  const stream = result.toDataStreamResponse();
-  (async () => {
-    try {
-      for await (const chunk of result.textStream) {
-        fullText += chunk;
+  console.log("open ai res:",openaiResponse)
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of openaiResponse) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ text: content })}\n\n`));
+          }
+        }
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+        controller.close();
+        console.log('fullText after streaming:', fullText);
+        // Store memory after streaming is done
+        if (fullText) {
+          await storeMessages(
+            userId,
+            chatId,
+            userMessage.content,
+            fullText,
+            {
+              imageData: formData?.get('imageData') as string || undefined,
+              imageName: formData?.get('imageName') as string || file?.name || undefined,
+            },
+            undefined
+          );
+        }
+      } catch (error) {
+        controller.error(error);
       }
-      console.log('Full text from OpenAI:', fullText);
-      if (fullText) {
-        await storeMessages(
-          userId,
-          chatId,
-          userMessage.content,
-          fullText,
-          {
-            imageData: formData?.get('imageData') as string || undefined,
-            imageName: formData?.get('imageName') as string || file?.name || undefined,
-          },
-          undefined
-        );
-      }
-    } catch (error) {
-      console.error('Error storing conversation:', error);
     }
-  })();
-  return stream;
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Transfer-Encoding': 'chunked',
+    },
+  });
 }
 
 

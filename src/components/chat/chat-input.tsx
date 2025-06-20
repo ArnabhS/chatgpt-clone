@@ -203,7 +203,7 @@ export default function ChatInput({
             onChange={onInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Ask anything"
-            className="flex-1 bg-transparent border-0 text-white placeholder-gray-400 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-32 py-1 px-0"
+            className="flex-1 bg-[] border-0 text-white placeholder-gray-400 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 h-full max-h-32 py-2 px-0 rounded-2xl"
             rows={1}
             style={{ boxShadow: 'none' }}
           />
