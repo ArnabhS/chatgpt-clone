@@ -12,10 +12,14 @@ const config = {
     },
   },
   vectorStore: {
-    provider: 'memory',
+    provider: 'supabase',
     config: {
-      collectionName: 'memories',
-      dimension: 1536,
+      collectionName: "memories",
+      embeddingModelDims: 1536,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
+      tableName: "memories",
+      historyTableName: "memory_history",
     },
   },
   llm: {
@@ -30,7 +34,7 @@ const config = {
     config: {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
       supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-      tableName: 'memories',
+      tableName: 'memories_history',
     },
   },
   disableHistory: false, 
