@@ -17,12 +17,33 @@ const config = {
 }
 
 const memory = new Memory(config);
-export async function storeMessages(userId: string, chatId: string, userContent: string, assistantContent: string) {
+export async function storeMessages(
+  userId: string,
+  chatId: string,
+  userContent: string,
+  assistantContent: string,
+  userFileFields?: Partial<{
+    imageData: string;
+    imageName: string;
+    pdfData: string;
+    pdfName: string;
+    txtData: string;
+    txtName: string;
+  }>,
+  assistantFileFields?: Partial<{
+    imageData: string;
+    imageName: string;
+    pdfData: string;
+    pdfName: string;
+    txtData: string;
+    txtName: string;
+  }>
+) {
   await memory.add(userContent, { userId, metadata: { role: 'user' } });
   await memory.add(assistantContent, { userId, metadata: { role: 'assistant' } });
   await ChatMessage.create([
-    { userId, chatId, role: 'user', content: userContent },
-    { userId, chatId, role: 'assistant', content: assistantContent },
+    { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
+    { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
   ]);
 }
 

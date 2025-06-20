@@ -58,7 +58,9 @@ export function AppSidebar({
       }
     };
 
-    fetchChats();
+    if (userId) {
+      fetchChats();
+    }
   }, [userId]);
 
   const filteredChats = chatHistory.filter((chat) =>

@@ -117,6 +117,29 @@ export async function POST(req: Request) {
       }))
     : [];
 
+  // Debug: Log what memory search returns
+  console.log('Memory contextMessages:', contextMessages);
+
+  // Always include the last 5 messages from this chat (if available)
+  let lastMessages: { role: string; content: string }[] = [];
+  if (existingChatId && userId) {
+    type RecentMsg = { role: string; content: string };
+    const recent = await import('@/models/chat').then(({ ChatMessage }) =>
+      ChatMessage.find({ chatId: existingChatId, userId })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean()
+    );
+    lastMessages = (recent as RecentMsg[]).reverse().map((msg) => ({ role: msg.role, content: msg.content }));
+  }
+
+  // Compose the prompt for the LLM
+  const promptMessages = trimMessagesToTokenLimit([
+    ...lastMessages,
+    ...contextMessages,
+    userMessage
+  ], modelName);
+
   if (file && typeof file === 'string') {
     console.error('File is a string, not a File object:', file);
     return new Response(JSON.stringify({ error: 'Invalid file format' }), { status: 400 });
@@ -175,7 +198,17 @@ export async function POST(req: Request) {
         (async () => {
           try {
             if (fullText) {
-              await storeMessages(userId, chatId, userMessage.content, fullText);
+              await storeMessages(
+                userId,
+                chatId,
+                userMessage.content,
+                fullText,
+                {
+                  imageData: formData?.get('imageData') as string || undefined,
+                  imageName: formData?.get('imageName') as string || file.name || undefined,
+                },
+                undefined
+              );
             }
           } catch (error) {
             console.error('Error storing conversation:', error);
@@ -234,7 +267,17 @@ export async function POST(req: Request) {
           (async () => {
             try {
               if (fullText) {
-                await storeMessages(userId, chatId, userMessage.content, fullText);
+                await storeMessages(
+                  userId,
+                  chatId,
+                  userMessage.content,
+                  fullText,
+                  {
+                    imageData: formData?.get('imageData') as string || undefined,
+                    imageName: formData?.get('imageName') as string || file.name || undefined,
+                  },
+                  undefined
+                );
               }
             } catch (error) {
               console.error('Error storing conversation:', error);
@@ -261,7 +304,7 @@ export async function POST(req: Request) {
   console.log('Processing message:', userMessage);
   const result = streamText({
     model: openai(modelName),
-    messages: trimMessagesToTokenLimit([...contextMessages, userMessage], modelName) as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    messages: promptMessages as Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
   });
   
   const stream = result.toDataStreamResponse();
@@ -272,7 +315,17 @@ export async function POST(req: Request) {
       }
       console.log('Full text from OpenAI:', fullText);
       if (fullText) {
-        await storeMessages(userId, chatId, userMessage.content, fullText);
+        await storeMessages(
+          userId,
+          chatId,
+          userMessage.content,
+          fullText,
+          {
+            imageData: formData?.get('imageData') as string || undefined,
+            imageName: formData?.get('imageName') as string || file?.name || undefined,
+          },
+          undefined
+        );
       }
     } catch (error) {
       console.error('Error storing conversation:', error);
