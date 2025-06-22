@@ -229,7 +229,7 @@ export default function ChatInput({
         </Tooltip>
         
         <Button
-          type="button"
+          type="submit"
           size="icon"
           variant="ghost"
           className="text-gray-400  p-3 h-4 w-4 rounded-full bg-[#404040]"
