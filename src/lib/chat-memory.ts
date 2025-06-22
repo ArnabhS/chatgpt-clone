@@ -82,26 +82,14 @@ export async function storeMessages(
       10000 
     );
     console.log("after memory.add");
-    console.log("adding memories");
-    await ChatMessage.create([
-      { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
-      { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
-    ]);
   } catch (err) {
-    console.error("Error in memory.add:", {
-      error: err,
-      env: {
-        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        openaiKey: process.env.OPENAI_API_KEY ? 'set' : 'missing',
-      }
-    });
-   
-    await ChatMessage.create([
-      { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
-      { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
-    ]);
+    console.error("Error in memory.add:", err);
   }
+  console.log("adding memories");
+  await ChatMessage.create([
+    { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
+    { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
+  ]);
 }
 
 // Helper to retrieve all memories for a user (with optional filters)
