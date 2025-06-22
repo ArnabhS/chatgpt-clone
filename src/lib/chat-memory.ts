@@ -74,22 +74,31 @@ export async function storeMessages(
     { role: 'user' as const, content: userContent },
     { role: 'assistant' as const, content: assistantContent },
   ];
+  
   try {
+    await ChatMessage.create([
+      { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
+      { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
+    ]);
     console.log("message recieved", userId, messages)
-    console.log("before memory.add");
     await withTimeout(
       memory.add(messages, { userId: userId, metadata: { category: "chat" } }),
       10000 
     );
-    console.log("after memory.add");
+    console.log("adding memories");
+    
   } catch (err) {
-    console.error("Error in memory.add:", err);
+    console.error("Error in memory.add:", {
+      error: err,
+      env: {
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        openaiKey: process.env.OPENAI_API_KEY ? 'set' : 'missing',
+      }
+    });
+   
+   
   }
-  console.log("adding memories");
-  await ChatMessage.create([
-    { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
-    { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
-  ]);
 }
 
 // Helper to retrieve all memories for a user (with optional filters)
