@@ -69,7 +69,7 @@ export async function storeMessages(
   ];
   await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
   console.log("adding memories")
-  // Still store full chat in MongoDB for history
+ 
   await ChatMessage.create([
     { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
     { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },

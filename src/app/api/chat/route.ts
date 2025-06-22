@@ -245,7 +245,7 @@ export async function POST(req: Request) {
     max_tokens: 1000,
     stream: true,
   });
-  console.log("open ai res:",openaiResponse)
+  
   const stream = new ReadableStream({
     async start(controller) {
       try {
@@ -258,9 +258,10 @@ export async function POST(req: Request) {
         }
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
         controller.close();
-        console.log('fullText after streaming:', fullText);
-        // Store memory after streaming is done
+       
+       
         if (fullText) {
+          console.log("Storing messages")
           await storeMessages(
             userId,
             chatId,
