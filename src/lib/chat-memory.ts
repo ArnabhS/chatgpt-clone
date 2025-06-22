@@ -67,9 +67,14 @@ export async function storeMessages(
     { role: 'user' as const, content: userContent },
     { role: 'assistant' as const, content: assistantContent },
   ];
-  await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
-  console.log("adding memories")
- 
+  try {
+    console.log("message recieved")
+    await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
+    console.log("adding memories");
+  } catch (err) {
+    console.error("Error in memory.add:", err);
+  }
+
   await ChatMessage.create([
     { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
     { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
@@ -91,4 +96,4 @@ export async function getAllMemories(userId: string) {
   }
 }
 
-export default memory; 
+export default memory;
