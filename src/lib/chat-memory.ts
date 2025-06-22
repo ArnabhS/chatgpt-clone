@@ -41,6 +41,13 @@ const config = {
 
 const memory = new Memory(config);
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('memory.add timeout')), ms))
+  ]);
+}
+
 export async function storeMessages(
   userId: string,
   chatId: string,
@@ -69,14 +76,17 @@ export async function storeMessages(
   ];
   try {
     console.log("message recieved", userId, messages)
-    await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
+    await withTimeout(
+      memory.add(messages, { userId: userId, metadata: { category: "chat" } }),
+      10000 
+    );
     console.log("adding memories");
     await ChatMessage.create([
       { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
       { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
     ]);
   } catch (err) {
-    console.log("Error in memory.add:", {
+    console.error("Error in memory.add:", {
       error: err,
       env: {
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -84,8 +94,8 @@ export async function storeMessages(
         openaiKey: process.env.OPENAI_API_KEY ? 'set' : 'missing',
       }
     });
-    // Optionally: store in DB with a "memoryFailed" flag
-     await ChatMessage.create([
+   
+    await ChatMessage.create([
       { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
       { userId, chatId, role: 'assistant', content: assistantContent, ...(assistantFileFields || {}) },
     ]);
