@@ -65,9 +65,15 @@ export function AppSidebar({
   };
 
   useEffect(() => {
-    if (userId) {
+    if (!userId) return;
+
+    fetchChats();
+
+    const interval = setInterval(() => {
       fetchChats();
-    }
+    }, 5000); 
+
+    return () => clearInterval(interval);
   }, [userId]);
 
   if (refreshSidebar) {

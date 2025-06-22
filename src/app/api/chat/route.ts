@@ -43,9 +43,9 @@ export async function POST(req: Request) {
     existingChatId = jsonBody.chatId as string;
     modelName = (jsonBody.modelName as string) || DEFAULT_MODEL;
   } else if (contentType.includes('multipart/form-data')) {
-    console.log('file received')
+    
     formData = await req.formData();
-    console.log(formData)
+    
     message = (formData.get('message') as string) || '';
     file = formData.get('files') as File;
     userId = (formData.get('userId') as string) || 'guest';
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     role: 'user' as const,
     content: message || ''
   };
-  console.log("userId in route", userId)  
+  
   const searchResults = await getAllMemories(userId);
 
   type MemoryResult = { memory: string };

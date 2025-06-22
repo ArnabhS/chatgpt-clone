@@ -67,8 +67,6 @@ export async function storeMessages(
     { role: 'user' as const, content: userContent },
     { role: 'assistant' as const, content: assistantContent },
   ];
-  // Add to Mem0
-  console.log("Messages:", messages)
   await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
   console.log("adding memories")
   // Still store full chat in MongoDB for history
