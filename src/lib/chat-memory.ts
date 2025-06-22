@@ -76,10 +76,12 @@ export async function storeMessages(
   ];
   try {
     console.log("message recieved", userId, messages)
+    console.log("before memory.add");
     await withTimeout(
       memory.add(messages, { userId: userId, metadata: { category: "chat" } }),
       10000 
     );
+    console.log("after memory.add");
     console.log("adding memories");
     await ChatMessage.create([
       { userId, chatId, role: 'user', content: userContent, ...(userFileFields || {}) },
