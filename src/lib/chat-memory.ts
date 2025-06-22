@@ -68,7 +68,7 @@ export async function storeMessages(
     { role: 'assistant' as const, content: assistantContent },
   ];
   try {
-    console.log("message recieved")
+    console.log("message recieved", userId, messages)
     await memory.add(messages, { userId: userId, metadata: { category: "chat" }  });
     console.log("adding memories");
   } catch (err) {

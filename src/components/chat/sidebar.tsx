@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {  useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -13,14 +13,9 @@ import { useUser } from "@clerk/nextjs"
 import Image from "next/image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton"
+import useSWR from 'swr';
 
-interface ChatItem {
-  _id: string;
-  title: string;
-  latestMessage: string;
-  createdAt: string;
-  updatedAt: string;
-}
+
 
 interface AppSidebarProps {
   isSheet?: boolean;
@@ -43,44 +38,29 @@ export function AppSidebar({
   currentChatId,
   isCollapsed = false,
   setIsCollapsed,
-  refreshSidebar
+ 
 }: AppSidebarProps) {
   const { user } = useUser();
   const [searchQuery, setSearchQuery] = useState("");
-  const [chatHistory, setChatHistory] = useState<ChatItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const userId = user?.id; 
 
-  const fetchChats = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/chat/history?userId=${userId}`);
-      const data = await res.json();
-      setChatHistory(data.chats || []);
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetcher = (url: string) => fetch(url).then(res => res.json());
 
-  useEffect(() => {
-    if (!userId) return;
-
-    fetchChats();
-
-    const interval = setInterval(() => {
-      fetchChats();
-    }, 5000); 
-
-    return () => clearInterval(interval);
-  }, [userId]);
-
-  if (refreshSidebar) {
-    refreshSidebar(fetchChats);
+  interface Chat {
+    _id: string;
+    title: string;
+   
   }
 
-  const filteredChats = chatHistory.filter((chat) =>
+  const { data, isLoading } = useSWR(
+    userId ? `/api/chat/history?userId=${userId}` : null,
+    fetcher,
+    { refreshInterval: 4000 }
+  );
+
+  const chatHistory: Chat[] = data?.chats || [];
+
+  const filteredChats = chatHistory.filter((chat: Chat) =>
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -184,7 +164,7 @@ export function AppSidebar({
               <h3 className="text-gray-400 text-xs font-medium mb-2 px-2">Chats</h3>
               <ScrollArea className="h-[300px]">
                 <div className="space-y-1">
-                  {loading ? (
+                  {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <Skeleton key={i} className="h-8 w-full bg-[#232323]" />
                     ))
