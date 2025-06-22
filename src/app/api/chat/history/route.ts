@@ -12,33 +12,35 @@ export async function GET(req: Request) {
 
   const messages = await ChatMessage.aggregate([
     { $match: { userId } },
-    { $sort: { createdAt: 1 } },
+    { $sort: { createdAt: -1 } },
+    
     {
       $group: {
         _id: "$chatId",
-        firstUserMessage: { $first: { $cond: [{ $eq: ["$role", "user"] }, "$content", null] } },
-        latestMessage: { $last: "$content" },
+        title: { $first: "$title" },
+        lastUserMessage: {
+          $first: {
+            $cond: [{ $eq: ["$role", "user"] }, "$content", null]
+          }
+        },
         createdAt: { $first: "$createdAt" },
-        updatedAt: { $last: "$createdAt" },
       },
     },
-    { $sort: { updatedAt: -1 } },
+    { $sort: { createdAt: -1 } },
   ]);
-
-  
+  console.log(messages)
   const chats = messages.map(chat => ({
     _id: chat._id,
-    title: chat.firstUserMessage || chat.latestMessage,
-    latestMessage: chat.latestMessage,
+    title: chat.lastUserMessage,
+    latestMessage: chat.lastUserMessage,
     createdAt: chat.createdAt,
-    updatedAt: chat.updatedAt,
   }));
 
   return new Response(JSON.stringify({ chats }), { status: 200 });
 }
 
 export async function POST(req: Request) {
- await connectDB()
+  await connectDB();
   const { chatId, userId } = await req.json();
 
   if (!chatId || !userId) {

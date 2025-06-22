@@ -57,12 +57,12 @@ export function AppSidebar({
     fetcher,
     { refreshInterval: 4000 }
   );
-
+  
   const chatHistory: Chat[] = data?.chats || [];
-
+  
   const filteredChats = chatHistory.filter((chat: Chat) =>
-    chat.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  (chat.title || "").toLowerCase().includes(searchQuery.toLowerCase())
+);
 
   
   if (isCollapsed && setIsCollapsed) {
